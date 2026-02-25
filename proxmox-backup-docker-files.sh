@@ -315,6 +315,10 @@ info "ZIP maken..."
 zip -q -j "$ZIP_PATH" "$LOCAL_TAR"
 success "ZIP klaar"
 
+info "Oude backups opruimen (max 3 bewaren)..."
+ls -1t "${BACKUP_DIR}"/docker-vm-backup-*.zip 2>/dev/null | tail -n +4 | xargs -r rm -f
+success "Backup rotatie klaar (laatste 3 bewaard)"
+
 echo ""
 echo -e "  ${PURPLE_90}Downloaden vanaf je laptop/mac:${NC}"
 echo -e "  ${GREEN_90}scp root@${PROXMOX_IP}:${ZIP_PATH} .${NC}"

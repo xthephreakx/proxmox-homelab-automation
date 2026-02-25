@@ -316,12 +316,29 @@ zip -q -j "$ZIP_PATH" "$LOCAL_TAR"
 success "ZIP klaar"
 
 info "Oude backups opruimen (max 3 bewaren)..."
+
+# Verwijder alles behalve de 3 nieuwste
 ls -1t "${BACKUP_DIR}"/docker-vm-backup-*.zip 2>/dev/null | tail -n +4 | xargs -r rm -f
+
 success "Backup rotatie klaar (laatste 3 bewaard)"
 
 echo ""
+echo -e "  ${PURPLE_90}Beschikbare backups:${NC}"
+
+# Toon huidige backups (nieuwste eerst)
+if ls "${BACKUP_DIR}"/docker-vm-backup-*.zip >/dev/null 2>&1; then
+  while IFS= read -r file; do
+    size=$(du -h "$file" | awk '{print $1}')
+    echo -e "  ${GREEN_90}•${NC} $(basename "$file") ${BLUE_90}(${size})${NC}"
+  done < <(ls -1t "${BACKUP_DIR}"/docker-vm-backup-*.zip)
+else
+  echo -e "  ${YELLOW_90}Geen backups gevonden${NC}"
+fi
+
+echo ""
+echo ""
 echo -e "  ${PURPLE_90}Downloaden vanaf je laptop/mac:${NC}"
-echo -e "  ${GREEN_90}scp root@${PROXMOX_IP}:${ZIP_PATH} .${NC}"
+echo -e "  ${GREEN_90}scp root@${PROXMOX_IP}:${ZIP_PATH}${NC}"
 echo ""
 echo -e "  ${PURPLE_90}Uitpakken:${NC}"
 echo -e "  ${GREEN_90}unzip $(basename "$ZIP_PATH")${NC}"

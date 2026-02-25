@@ -1,0 +1,22 @@
+# Test folder volledig negeren
+/test/*
+/backups/*
+
+# Environment / secrets
+.env
+*.env
+secrets/
+config.local.*
+
+# Logs / temp / backups
+*.log
+*.tmp
+*.bak
+
+# Keys / certs
+*.key
+*.pem
+*.crt
+
+# macOS rommel
+.DS_Store

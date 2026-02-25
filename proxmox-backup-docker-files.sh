@@ -315,25 +315,48 @@ info "ZIP maken..."
 zip -q -j "$ZIP_PATH" "$LOCAL_TAR"
 success "ZIP klaar"
 
-info "Oude backups opruimen (max 3 bewaren)..."
+info "Backup rotatie controleren (max 3 bewaren)..."
 
-# Verwijder alles behalve de 3 nieuwste
-ls -1t "${BACKUP_DIR}"/docker-vm-backup-*.zip 2>/dev/null | tail -n +4 | xargs -r rm -f
+# Bepaal welke backups ouder zijn dan de 3 nieuwste
+mapfile -t OLD_BACKUPS < <(
+  ls -1t "${BACKUP_DIR}"/docker-vm-backup-*.zip 2>/dev/null | tail -n +4
+)
 
-success "Backup rotatie klaar (laatste 3 bewaard)"
+if [[ ${#OLD_BACKUPS[@]} -gt 0 ]]; then
+  warn "De volgende backups worden verwijderd:"
+  echo ""
+
+  for file in "${OLD_BACKUPS[@]}"; do
+    size=$(du -h "$file" | awk '{print $1}')
+    echo -e "  ${RED_90}✗${NC} $(basename "$file") ${BLUE_90}(${size})${NC}"
+  done
+
+  echo ""
+  read -rp "  Verwijderen? (y/N): " confirm
+
+  if [[ "${confirm,,}" == "y" ]]; then
+    rm -f "${OLD_BACKUPS[@]}"
+    success "Oude backups verwijderd"
+  else
+    msg_skip "Rotatie overgeslagen — je kunt backups eerst downloaden"
+  fi
+else
+  msg_skip "Geen oude backups om te verwijderen"
+fi
 
 echo ""
 echo -e "  ${PURPLE_90}Beschikbare backups:${NC}"
 
-# Toon huidige backups (nieuwste eerst)
 if ls "${BACKUP_DIR}"/docker-vm-backup-*.zip >/dev/null 2>&1; then
-  while IFS= read -r file; do
+  ls -1t "${BACKUP_DIR}"/docker-vm-backup-*.zip | while read -r file; do
     size=$(du -h "$file" | awk '{print $1}')
     echo -e "  ${GREEN_90}•${NC} $(basename "$file") ${BLUE_90}(${size})${NC}"
-  done < <(ls -1t "${BACKUP_DIR}"/docker-vm-backup-*.zip)
+  done
 else
   echo -e "  ${YELLOW_90}Geen backups gevonden${NC}"
 fi
+
+echo ""
 
 echo ""
 echo ""

@@ -7,6 +7,7 @@
 *.env
 secrets/
 config.local.*
+deploy.conf
 
 # Logs / temp / backups
 *.log

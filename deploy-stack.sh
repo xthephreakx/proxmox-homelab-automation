@@ -133,14 +133,34 @@ success "PyYAML beschikbaar"
 COMPOSE_OUT="$TMP_DIR/docker-compose.yml"
 
 info "Compose transformeren..."
-DETECTED_PORT=$(python3 - "$COMPOSE_RAW" "$STACK_NAME" "$BASE_DOMAIN" "$PORT_OVERRIDE" "$COMPOSE_OUT" <<'PYEOF'
-import sys, yaml, re
+TRANSFORM_OUT=$(python3 - "$COMPOSE_RAW" "$STACK_NAME" "$BASE_DOMAIN" "$PORT_OVERRIDE" "$COMPOSE_OUT" "$COMPOSE_BASE_PATH" <<'PYEOF'
+import sys, yaml, re, os
 
-compose_file = sys.argv[1]
-stack_name   = sys.argv[2]
-base_domain  = sys.argv[3]
-port_override = sys.argv[4]
-output_file  = sys.argv[5]
+compose_file      = sys.argv[1]
+stack_name        = sys.argv[2]
+base_domain       = sys.argv[3]
+port_override     = sys.argv[4]
+output_file       = sys.argv[5]
+compose_base_path = sys.argv[6]
+
+# Systeempaden die nooit herschreven worden
+SYSTEM_PREFIXES = (
+    "/var/run", "/var/lib/docker", "/etc", "/proc",
+    "/sys", "/dev", "/tmp", "/run",
+)
+
+def is_system_path(path):
+    return any(path.startswith(p) for p in SYSTEM_PREFIXES)
+
+def rewrite_volume_path(host_path, stack_name, compose_base_path):
+    """Herschrijf een NAS/extern pad naar het VM compose pad."""
+    if is_system_path(host_path):
+        return host_path, None  # ongewijzigd, geen map aanmaken
+    # Neem de laatste component(en) van het pad als submap
+    # bv. /volume1/docker/homepage-v2/config → config
+    last = os.path.basename(host_path.rstrip("/"))
+    new_path = f"{compose_base_path}/{stack_name}/{last}"
+    return new_path, new_path
 
 with open(compose_file, "r") as f:
     doc = yaml.safe_load(f)
@@ -148,6 +168,9 @@ with open(compose_file, "r") as f:
 if not doc or "services" not in doc:
     print("ERROR: geen 'services' gevonden in compose", file=sys.stderr)
     sys.exit(1)
+
+# Verwijder deprecated 'version' key
+doc.pop("version", None)
 
 services = doc["services"]
 
@@ -159,7 +182,6 @@ for svc_name, svc in services.items():
     ports = svc.get("ports", [])
     if ports:
         target_service = svc_name
-        # Pak de container-poort (rechts van de : of het gehele getal)
         port_str = str(ports[0])
         match = re.search(r':?(\d+)(?:/tcp|/udp)?$', port_str.split("->")[-1])
         if match:
@@ -178,14 +200,70 @@ else:
     print("ERROR: kan poort niet detecteren, geef poort op als 3e argument", file=sys.stderr)
     sys.exit(1)
 
-print(port)  # output voor bash
+dirs_to_create = []
 
+# Verwerk alle services
+for svc_name, svc in services.items():
+    if svc is None:
+        continue
+
+    # --- Volumes herschrijven ---
+    raw_volumes = svc.get("volumes", [])
+    new_volumes = []
+    for vol in raw_volumes:
+        if isinstance(vol, str):
+            # Formaat: host_path:container_path[:opties]  of  named_volume:container_path
+            parts = vol.split(":")
+            host = parts[0]
+            rest = parts[1:]
+            # Named volumes beginnen niet met /
+            if host.startswith("/"):
+                new_host, mkdir_path = rewrite_volume_path(host, stack_name, compose_base_path)
+                if mkdir_path:
+                    dirs_to_create.append(mkdir_path)
+                new_volumes.append(":".join([new_host] + rest))
+            else:
+                new_volumes.append(vol)
+        elif isinstance(vol, dict):
+            # Long syntax: {type, source, target}
+            src = vol.get("source", "")
+            if src.startswith("/"):
+                new_src, mkdir_path = rewrite_volume_path(src, stack_name, compose_base_path)
+                if mkdir_path:
+                    dirs_to_create.append(mkdir_path)
+                vol = dict(vol)
+                vol["source"] = new_src
+            new_volumes.append(vol)
+        else:
+            new_volumes.append(vol)
+    if new_volumes:
+        svc["volumes"] = new_volumes
+
+    # --- Env values opschonen (strip trailing garbage zoals >) ---
+    env = svc.get("environment", [])
+    if isinstance(env, list):
+        cleaned = []
+        for e in env:
+            if isinstance(e, str):
+                k, _, v = e.partition("=")
+                v = v.rstrip("><|&;")
+                cleaned.append(f"{k}={v}" if _ else e)
+            else:
+                cleaned.append(e)
+        svc["environment"] = cleaned
+    elif isinstance(env, dict):
+        svc["environment"] = {
+            k: (str(v).rstrip("><|&;") if isinstance(v, str) else v)
+            for k, v in env.items()
+        }
+
+# Traefik + netwerk alleen op target service
 svc = services[target_service]
 
 # Verwijder directe port mappings
 svc.pop("ports", None)
 
-# Voeg proxy netwerk toe aan service
+# Voeg proxy netwerk toe
 if "networks" not in svc:
     svc["networks"] = []
 if isinstance(svc["networks"], list) and "proxy" not in svc["networks"]:
@@ -207,7 +285,6 @@ traefik_labels = [
 existing = svc.get("labels", [])
 if isinstance(existing, dict):
     existing = [f"{k}={v}" for k, v in existing.items()]
-# Verwijder eventuele bestaande traefik labels en voeg nieuwe toe
 existing = [l for l in existing if not str(l).startswith("traefik.")]
 svc["labels"] = existing + traefik_labels
 
@@ -219,10 +296,25 @@ doc["networks"]["proxy"] = {"external": True}
 with open(output_file, "w") as f:
     yaml.dump(doc, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
+# Output: poort en mappen gescheiden door newline
+print(port)
+for d in dirs_to_create:
+    print(f"MKDIR:{d}")
+
 PYEOF
 ) || fail "Compose transformatie mislukt"
 
+DETECTED_PORT=$(echo "$TRANSFORM_OUT" | head -1)
+DIRS_TO_CREATE=$(echo "$TRANSFORM_OUT" | grep "^MKDIR:" | sed 's/^MKDIR://')
+
 success "Traefik labels geïnjecteerd op poort $DETECTED_PORT → $STACK_NAME.$BASE_DOMAIN"
+
+if [[ -n "$DIRS_TO_CREATE" ]]; then
+    while IFS= read -r dir; do
+        [[ -z "$dir" ]] && continue
+        warn "Volume pad herschreven → $dir"
+    done <<< "$DIRS_TO_CREATE"
+fi
 
 # ==============================
 # Stap 3: .env aanmaken
@@ -249,6 +341,18 @@ ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
     "sudo mkdir -p '${REMOTE_PATH}' && sudo chown ${VM_USER}:${VM_USER} '${REMOTE_PATH}'" \
     > /dev/null 2>&1
 success "Map aangemaakt"
+
+# Maak ook herschreven volume mappen aan op de VM
+if [[ -n "$DIRS_TO_CREATE" ]]; then
+    while IFS= read -r dir; do
+        [[ -z "$dir" ]] && continue
+        info "Volume map aanmaken: $dir"
+        ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
+            "sudo mkdir -p '${dir}' && sudo chown ${VM_USER}:${VM_USER} '${dir}'" \
+            > /dev/null 2>&1
+        success "Volume map aangemaakt: $dir"
+    done <<< "$DIRS_TO_CREATE"
+fi
 
 # ==============================
 # Stap 5: Bestanden uploaden

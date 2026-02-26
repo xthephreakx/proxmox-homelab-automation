@@ -328,7 +328,7 @@ PYEOF
 ) || fail "Compose transformatie mislukt"
 
 DETECTED_PORT=$(echo "$TRANSFORM_OUT" | head -1)
-DIRS_TO_CREATE=$(echo "$TRANSFORM_OUT" | grep "^MKDIR:" | sed 's/^MKDIR://')
+DIRS_TO_CREATE=$(echo "$TRANSFORM_OUT" | grep "^MKDIR:" | sed 's/^MKDIR://' || true)
 
 success "Traefik labels geïnjecteerd op poort $DETECTED_PORT → $STACK_NAME.$BASE_DOMAIN"
 
@@ -414,18 +414,19 @@ MERGEEOF
 
     step "Samengevonden compose uploaden"
     info "docker-compose.yml uploaden naar $ADD_TO_STACK..."
-    scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no \
-        "$MERGED_COMPOSE" \
-        "${VM_USER}@${VM_HOST}:${TARGET_PATH}/docker-compose.yml" > /dev/null 2>&1
+    # Gebruik sudo tee zodat ook root-owned Dockge directories beschreven kunnen worden
+    cat "$MERGED_COMPOSE" | ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
+        "sudo tee '${TARGET_PATH}/docker-compose.yml'" > /dev/null
     success "Compose geüpload"
 
     step "Stack herstarten"
     info "docker compose up -d..."
+    # sudo nodig: Dockge-stacks zijn eigendom van root
     ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
-        "cd '${TARGET_PATH}' && docker compose up -d --build 2>&1" \
+        "cd '${TARGET_PATH}' && sudo docker compose up -d --build 2>&1" \
         | while IFS= read -r line; do
             [[ "$line" =~ (Started|Running|Created|Built|Pulled) ]] && success "$line" || true
-          done
+          done || true
 
 else
     # ── Nieuwe standalone stack ────────────────────────────────

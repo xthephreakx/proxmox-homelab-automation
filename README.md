@@ -5,12 +5,28 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Proxmox-9.x-FF007C?style=flat-square" alt="Proxmox">
   <img src="https://img.shields.io/badge/Bash-5.0+-00FEA2?style=flat-square&logoColor=000" alt="Bash">
-  <img src="https://img.shields.io/badge/Docker-CE-00A2FF?style=flat-square" alt="Docker">
-  <img src="https://img.shields.io/badge/Cloud--init-Ubuntu_Jammy-904CFE?style=flat-square" alt="Cloud-init">
+  <img src="https://img.shields.io/badge/Python-3.x-00A2FF?style=flat-square&logoColor=000" alt="Python">
+  <img src="https://img.shields.io/badge/Docker-CE-904CFE?style=flat-square" alt="Docker">
+  <img src="https://img.shields.io/badge/Cloud--init-Ubuntu_Jammy-FF007C?style=flat-square" alt="Cloud-init">
   <img src="https://img.shields.io/badge/License-MIT-FFD300?style=flat-square&logoColor=000" alt="License">
 </p>
 
 <p align="center">Proxmox VE automation scripts for setting up a Docker homelab with VM templates, cloud-init, wildcard TLS, and persistent storage.</p>
+
+---
+
+## Index
+
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [deploy-stack.sh — Stack deployer](#deploy-stacksh--stack-deployer)
+- [Configuration](#configuration)
+- [Services](#services)
+- [Post-Install Notes](#post-install-notes)
+- [Troubleshooting](#troubleshooting)
+- [File Structure](#file-structure)
+- [Safety Notes](#safety-notes)
 
 ---
 

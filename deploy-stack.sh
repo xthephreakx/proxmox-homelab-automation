@@ -8,12 +8,13 @@ set -euo pipefail
 # en deployt de stack naar de Docker VM.
 #
 # Gebruik:
-#   ./deploy-stack.sh <stack-naam> <compose-bestand-of-url> [poort]
+#   ./deploy-stack.sh <stack-naam> <compose-bestand-of-url> [poort] [--add-to <bestaande-stack>]
 #
 # Voorbeelden:
 #   ./deploy-stack.sh it-tools https://raw.githubusercontent.com/.../docker-compose.yml 8080
 #   ./deploy-stack.sh mijn-app ./docker-compose.yml 3000
 #   ./deploy-stack.sh mijn-app ./docker-compose.yml        # poort auto-detectie
+#   ./deploy-stack.sh it-tools ./compose.yml 8080 --add-to homelab  # toevoegen aan bestaande stack
 
 # ==============================
 # Kleuren (zelfde palet als proxmox scripts)
@@ -81,21 +82,43 @@ SSH_OPTS="-i ${SSH_KEY} -o StrictHostKeyChecking=no -o BatchMode=yes"
 # Argumenten
 # ==============================
 if [[ $# -lt 2 ]]; then
-    printf "\n${YELLOW_90}Gebruik:${NC} $0 <stack-naam> <compose-bestand-of-url> [poort]\n\n"
-    printf "  ${GREEN_90}Voorbeeld:${NC}\n"
-    printf "    $0 it-tools https://raw.githubusercontent.com/.../docker-compose.yml 8080\n"
-    printf "    $0 mijn-app ./docker-compose.yml 3000\n\n"
+    printf "\n${YELLOW_90}Gebruik:${NC} $0 <stack-naam> <compose-bestand-of-url> [poort] [--add-to <bestaande-stack>]\n\n"
+    printf "  ${GREEN_90}Voorbeelden:${NC}\n"
+    printf "    $0 it-tools ./docker-compose.yml 8080\n"
+    printf "    $0 it-tools ./docker-compose.yml 8080 --add-to homelab\n"
+    printf "    $0 mijn-app ./docker-compose.yml --add-to homelab\n\n"
     exit 1
 fi
 
 STACK_NAME="$1"
 COMPOSE_INPUT="$2"
-PORT_OVERRIDE="${3:-}"
+PORT_OVERRIDE=""
+ADD_TO_STACK=""
+
+# Parseer optionele argumenten
+shift 2
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --add-to)
+            ADD_TO_STACK="${2:-}"
+            [[ -z "$ADD_TO_STACK" ]] && fail "--add-to vereist een stack naam"
+            shift 2
+            ;;
+        *)
+            PORT_OVERRIDE="$1"
+            shift
+            ;;
+    esac
+done
 
 # ==============================
 # Start
 # ==============================
-header "Deploy Stack: $STACK_NAME"
+if [[ -n "$ADD_TO_STACK" ]]; then
+    header "Deploy Stack: $STACK_NAME → toevoegen aan '$ADD_TO_STACK'"
+else
+    header "Deploy Stack: $STACK_NAME"
+fi
 
 # ==============================
 # Stap 1: Compose ophalen
@@ -317,95 +340,181 @@ if [[ -n "$DIRS_TO_CREATE" ]]; then
 fi
 
 # ==============================
-# Stap 3: .env aanmaken
+# Stap 3: SSH verbinding testen
 # ==============================
-ENV_FILE="$TMP_DIR/.env"
-cat > "$ENV_FILE" <<EOF
-BASE_DOMAIN=${BASE_DOMAIN}
-COMPOSE_PROJECT_NAME=${STACK_NAME}
-EOF
-
-# ==============================
-# Stap 4: Map aanmaken op VM
-# ==============================
-step "Map aanmaken op VM"
-
-REMOTE_PATH="${COMPOSE_BASE_PATH}/${STACK_NAME}"
+step "VM verbinding testen"
 
 info "SSH verbinding testen..."
 ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" "echo ok" > /dev/null 2>&1 || fail "Kan niet verbinden met ${VM_USER}@${VM_HOST}"
 success "SSH verbinding OK"
 
-info "Map aanmaken: $REMOTE_PATH"
-ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
-    "sudo mkdir -p '${REMOTE_PATH}' && sudo chown ${VM_USER}:${VM_USER} '${REMOTE_PATH}'" \
-    > /dev/null 2>&1
-success "Map aangemaakt"
+# ==============================
+# Stap 4: --add-to of nieuwe stack
+# ==============================
+if [[ -n "$ADD_TO_STACK" ]]; then
+    # ── Toevoegen aan bestaande stack ──────────────────────────
+    TARGET_PATH="${COMPOSE_BASE_PATH}/${ADD_TO_STACK}"
+    EXISTING_COMPOSE="$TMP_DIR/existing-compose.yml"
 
-# Maak ook herschreven volume mappen aan op de VM
-if [[ -n "$DIRS_TO_CREATE" ]]; then
-    while IFS= read -r dir; do
-        [[ -z "$dir" ]] && continue
-        info "Volume map aanmaken: $dir"
-        ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
-            "sudo mkdir -p '${dir}' && sudo chown ${VM_USER}:${VM_USER} '${dir}'" \
-            > /dev/null 2>&1
-        success "Volume map aangemaakt: $dir"
-    done <<< "$DIRS_TO_CREATE"
+    step "Samenvoegen met bestaande stack: $ADD_TO_STACK"
+
+    info "Bestaande compose downloaden..."
+    scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no \
+        "${VM_USER}@${VM_HOST}:${TARGET_PATH}/docker-compose.yml" \
+        "$EXISTING_COMPOSE" > /dev/null 2>&1 \
+        || fail "Kan compose van '$ADD_TO_STACK' niet downloaden van ${TARGET_PATH}/docker-compose.yml"
+    success "Bestaande compose opgehaald"
+
+    MERGED_COMPOSE="$TMP_DIR/merged-compose.yml"
+
+    info "Services samenvoegen..."
+    python3 - "$EXISTING_COMPOSE" "$COMPOSE_OUT" "$MERGED_COMPOSE" "$STACK_NAME" <<'MERGEEOF'
+import sys, yaml
+
+existing_file = sys.argv[1]
+new_file      = sys.argv[2]
+output_file   = sys.argv[3]
+stack_name    = sys.argv[4]
+
+with open(existing_file, "r") as f:
+    existing = yaml.safe_load(f)
+with open(new_file, "r") as f:
+    new = yaml.safe_load(f)
+
+# Voeg nieuwe services toe (overschrijf bij conflict)
+for svc_name, svc in new.get("services", {}).items():
+    existing.setdefault("services", {})[svc_name] = svc
+    if svc_name != stack_name:
+        # Hernoem service naar stack_name als ze verschillen
+        pass
+
+# Voeg nieuwe volumes toe
+for vol_name, vol in new.get("volumes", {}).items():
+    existing.setdefault("volumes", {})[vol_name] = vol
+
+# Zorg dat proxy netwerk aanwezig is
+existing.setdefault("networks", {})["proxy"] = {"external": True}
+
+with open(output_file, "w") as f:
+    yaml.dump(existing, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+MERGEEOF
+    success "Services samengevoegd"
+
+    # Volume mappen aanmaken op VM
+    if [[ -n "$DIRS_TO_CREATE" ]]; then
+        while IFS= read -r dir; do
+            [[ -z "$dir" ]] && continue
+            info "Volume map aanmaken: $dir"
+            ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
+                "sudo mkdir -p '${dir}' && sudo chown ${VM_USER}:${VM_USER} '${dir}'" \
+                > /dev/null 2>&1
+            success "Volume map aangemaakt: $dir"
+        done <<< "$DIRS_TO_CREATE"
+    fi
+
+    step "Samengevonden compose uploaden"
+    info "docker-compose.yml uploaden naar $ADD_TO_STACK..."
+    scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no \
+        "$MERGED_COMPOSE" \
+        "${VM_USER}@${VM_HOST}:${TARGET_PATH}/docker-compose.yml" > /dev/null 2>&1
+    success "Compose geüpload"
+
+    step "Stack herstarten"
+    info "docker compose up -d..."
+    ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
+        "cd '${TARGET_PATH}' && docker compose up -d --build 2>&1" \
+        | while IFS= read -r line; do
+            [[ "$line" =~ (Started|Running|Created|Built|Pulled) ]] && success "$line" || true
+          done
+
+else
+    # ── Nieuwe standalone stack ────────────────────────────────
+    ENV_FILE="$TMP_DIR/.env"
+    cat > "$ENV_FILE" <<EOF
+BASE_DOMAIN=${BASE_DOMAIN}
+COMPOSE_PROJECT_NAME=${STACK_NAME}
+EOF
+
+    REMOTE_PATH="${COMPOSE_BASE_PATH}/${STACK_NAME}"
+
+    step "Map aanmaken op VM"
+    info "Map aanmaken: $REMOTE_PATH"
+    ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
+        "sudo mkdir -p '${REMOTE_PATH}' && sudo chown ${VM_USER}:${VM_USER} '${REMOTE_PATH}'" \
+        > /dev/null 2>&1
+    success "Map aangemaakt"
+
+    # Volume mappen aanmaken op VM
+    if [[ -n "$DIRS_TO_CREATE" ]]; then
+        while IFS= read -r dir; do
+            [[ -z "$dir" ]] && continue
+            info "Volume map aanmaken: $dir"
+            ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
+                "sudo mkdir -p '${dir}' && sudo chown ${VM_USER}:${VM_USER} '${dir}'" \
+                > /dev/null 2>&1
+            success "Volume map aangemaakt: $dir"
+        done <<< "$DIRS_TO_CREATE"
+    fi
+
+    step "Bestanden uploaden"
+    info "docker-compose.yml uploaden..."
+    scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no \
+        "$COMPOSE_OUT" "$ENV_FILE" \
+        "${VM_USER}@${VM_HOST}:${REMOTE_PATH}/" > /dev/null 2>&1
+    success "Bestanden geüpload"
+
+    step "Container starten"
+    info "docker compose up --build..."
+    ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
+        "cd '${REMOTE_PATH}' && docker compose up -d --build 2>&1" \
+        | while IFS= read -r line; do
+            [[ "$line" =~ (Started|Running|Created|Built|Pulled) ]] && success "$line" || true
+          done
+
 fi
-
-# ==============================
-# Stap 5: Bestanden uploaden
-# ==============================
-step "Bestanden uploaden"
-
-info "docker-compose.yml uploaden..."
-scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no \
-    "$COMPOSE_OUT" "$ENV_FILE" \
-    "${VM_USER}@${VM_HOST}:${REMOTE_PATH}/" > /dev/null 2>&1
-success "Bestanden geüpload"
-
-# ==============================
-# Stap 6: Container starten
-# ==============================
-step "Container starten"
-
-info "docker compose up --build..."
-ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
-    "cd '${REMOTE_PATH}' && docker compose up -d --build 2>&1" \
-    | while IFS= read -r line; do
-        [[ "$line" =~ (Started|Running|Created|Built|Pulled) ]] && success "$line" || true
-      done
 
 # ==============================
 # Stap 7: Verifiëren
 # ==============================
 step "Verifiëren"
 
-sleep 2
+sleep 3
 
-CONTAINER_STATUS=$(ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
-    "docker ps --filter name=${STACK_NAME} --format '{{.Status}}' 2>/dev/null | head -1")
+# Filter op naam werkt als substring-match (vindt ook homelab-it-tools-1)
+CONTAINER_INFO=$(ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
+    "docker ps --filter name=${STACK_NAME} --format '{{.Names}}\t{{.Status}}' 2>/dev/null | head -1")
+
+CONTAINER_NAME=$(printf '%s' "$CONTAINER_INFO" | cut -f1)
+CONTAINER_STATUS=$(printf '%s' "$CONTAINER_INFO" | cut -f2-)
 
 if [[ "$CONTAINER_STATUS" =~ ^Up ]]; then
-    success "Container draait: $CONTAINER_STATUS"
+    success "Container draait: ${CONTAINER_NAME} (${CONTAINER_STATUS})"
 else
-    fail "Container status onbekend: '${CONTAINER_STATUS}'"
+    warn "Container nog niet actief (status: '${CONTAINER_STATUS:-niet gevonden}')"
 fi
 
-TRAEFIK_RULE=$(ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
-    "docker inspect ${STACK_NAME} --format '{{index .Config.Labels \"traefik.http.routers.${STACK_NAME}.rule\"}}' 2>/dev/null || true")
+# Traefik label check via werkelijke container naam
+if [[ -n "$CONTAINER_NAME" ]]; then
+    TRAEFIK_RULE=$(ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
+        "docker inspect '${CONTAINER_NAME}' --format \
+        '{{index .Config.Labels \"traefik.http.routers.${STACK_NAME}.rule\"}}' \
+        2>/dev/null || true")
 
-if [[ -n "$TRAEFIK_RULE" ]]; then
-    success "Traefik route: $TRAEFIK_RULE"
-else
-    warn "Traefik label niet gevonden (container naam kan afwijken van stack naam)"
+    if [[ -n "$TRAEFIK_RULE" ]]; then
+        success "Traefik route actief: $TRAEFIK_RULE"
+    else
+        warn "Traefik label niet gevonden op container '${CONTAINER_NAME}'"
+    fi
 fi
 
 # ==============================
 # Klaar
 # ==============================
 printf "\n${GREEN_90}══════════════════════════════════════${NC}\n"
-printf "  ${GREEN_90}✓ Stack '${STACK_NAME}' is live!${NC}\n"
+if [[ -n "$ADD_TO_STACK" ]]; then
+    printf "  ${GREEN_90}✓ '${STACK_NAME}' toegevoegd aan stack '${ADD_TO_STACK}'!${NC}\n"
+else
+    printf "  ${GREEN_90}✓ Stack '${STACK_NAME}' is live!${NC}\n"
+fi
 printf "  ${BLUE_90}➜ https://${STACK_NAME}.${BASE_DOMAIN}${NC}\n"
 printf "${GREEN_90}══════════════════════════════════════${NC}\n\n"

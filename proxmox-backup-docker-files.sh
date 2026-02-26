@@ -10,7 +10,7 @@ set -euo pipefail
 #   and stores it on the Proxmox host in /root/backups for easy scp download.
 #
 # Run (on Proxmox host as root):
-#   /opt/proxmox-setup/proxmox-backup-docker-vm.sh
+#   /opt/proxmox-setup/proxmox-backup-docker-files.sh
 #
 # Download:
 #   scp root@<proxmox-ip>:/root/backups/<file>.zip .
@@ -34,67 +34,56 @@ NC='\033[0m'
 SPINNER_PID=""
 
 spinner() {
-    local spin=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
-    local i=0
-    while true; do
-        printf "\r  ${YELLOW_90}${spin[$i]}${NC} %s" "$1"
-        i=$(( (i + 1) % ${#spin[@]} ))
-        sleep 0.1
-    done
+  local spin=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+  local i=0
+  while true; do
+    printf "\r  ${YELLOW_90}${spin[$i]}${NC} %s" "$1"
+    i=$(( (i + 1) % ${#spin[@]} ))
+    sleep 0.1
+  done
+}
+
+_stop_spinner() {
+  if [[ -n "${SPINNER_PID:-}" ]]; then
+    kill "$SPINNER_PID" 2>/dev/null || true
+    wait "$SPINNER_PID" 2>/dev/null || true
+    SPINNER_PID=""
+  fi
+  tput cnorm 2>/dev/null || true
 }
 
 info() {
-    local msg="$1"
-    spinner "$msg" &
-    SPINNER_PID=$!
-    tput civis 2>/dev/null || true
+  local msg="$1"
+  _stop_spinner
+  spinner "$msg" &
+  SPINNER_PID=$!
+  tput civis 2>/dev/null || true
 }
 
 success() {
-    local msg="$1"
-    if [[ -n "${SPINNER_PID:-}" ]]; then
-        kill "$SPINNER_PID" 2>/dev/null || true
-        wait "$SPINNER_PID" 2>/dev/null || true
-    fi
-    printf "\r\033[K  ${GREEN_90}✓${NC} %s\n" "$msg"
-    tput cnorm 2>/dev/null || true
-    SPINNER_PID=""
+  local msg="$1"
+  _stop_spinner
+  printf "\r\033[K  ${GREEN_90}✓${NC} %s\n" "$msg"
 }
 
 fail() {
-    local msg="$1"
-    if [[ -n "${SPINNER_PID:-}" ]]; then
-        kill "$SPINNER_PID" 2>/dev/null || true
-        wait "$SPINNER_PID" 2>/dev/null || true
-    fi
-    printf "\r\033[K  ${RED_90}✗${NC} %s\n" "$msg"
-    tput cnorm 2>/dev/null || true
-    exit 1
+  local msg="$1"
+  _stop_spinner
+  printf "\r\033[K  ${RED_90}✗${NC} %s\n" "$msg"
+  exit 1
 }
 
 msg_skip() {
-    local msg="$1"
-    if [[ -n "${SPINNER_PID:-}" ]]; then
-        kill "$SPINNER_PID" 2>/dev/null || true
-        wait "$SPINNER_PID" 2>/dev/null || true
-    fi
-    printf "\r\033[K  ${BLUE_90}⊘${NC} %s\n" "$msg"
-    tput cnorm 2>/dev/null || true
-    SPINNER_PID=""
+  local msg="$1"
+  _stop_spinner
+  printf "\r\033[K  ${BLUE_90}⊘${NC} %s\n" "$msg"
 }
 
 warn() {
-    local msg="$1"
-    if [[ -n "${SPINNER_PID:-}" ]]; then
-        kill "$SPINNER_PID" 2>/dev/null || true
-        wait "$SPINNER_PID" 2>/dev/null || true
-    fi
-    printf "\r\033[K  ${YELLOW_90}!${NC} %s\n" "$msg"
-    tput cnorm 2>/dev/null || true
-    SPINNER_PID=""
+  local msg="$1"
+  _stop_spinner
+  printf "\r\033[K  ${YELLOW_90}!${NC} %s\n" "$msg"
 }
-
-trap 'kill "$SPINNER_PID" 2>/dev/null; tput cnorm 2>/dev/null' EXIT INT TERM
 
 # ==============================
 # Banner
@@ -113,7 +102,6 @@ banner() {
 # ==============================
 # Config
 # ==============================
-INSTALL_DIR="/opt/proxmox-setup"
 DEFAULTS_FILE="/opt/vmconfigs/defaults.conf"
 
 BACKUP_DIR="/root/backups"
@@ -127,7 +115,6 @@ VM_USER_FALLBACK="pasta"
 REMOTE_PATHS=(
   "/mnt/docker-data/compose"
   "/etc/docker/daemon.json"
-  # "/mnt/docker-data/media"    # Uncomment if you REALLY want media too (can be huge)
 )
 
 # ==============================
@@ -147,14 +134,12 @@ ensure_cmd() {
 strip_cidr() { echo "${1%%/*}"; }
 
 detect_proxmox_ip() {
-  # Best effort: use default route interface IP
   local ip
   ip="$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7; exit}' || true)"
   if [[ -n "${ip:-}" ]]; then
     echo "$ip"
     return 0
   fi
-  # Fallback: first IP from hostname -I
   ip="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
   [[ -n "${ip:-}" ]] || return 1
   echo "$ip"
@@ -174,8 +159,6 @@ load_defaults() {
 }
 
 detect_docker_vmid() {
-  # Detect docker VM by cicustom snippet reference (ubuntu-docker.yaml)
-  # Prefer running VMs.
   local vmid status
   local running_match=""
   local stopped_match=""
@@ -215,13 +198,11 @@ get_vm_ip_from_guest_agent() {
 }
 
 detect_docker_ip() {
-  # 1) defaults.conf
   if [[ -n "${DOCKER_VM_IP:-}" ]]; then
     strip_cidr "$DOCKER_VM_IP"
     return 0
   fi
 
-  # 2) Proxmox detection (vmid + guest agent IP)
   local vmid ip
   vmid="$(detect_docker_vmid || true)"
   if [[ -n "${vmid:-}" ]]; then
@@ -239,17 +220,12 @@ remote_tar() {
   local user="$1" ip="$2" remote_file="$3"
   shift 3
 
-  # Zet paden om naar relatieve paden vanaf /
-  # /mnt/docker-data/compose  -> mnt/docker-data/compose
-  # /etc/docker/daemon.json   -> etc/docker/daemon.json
   local rel_paths=()
   local p
   for p in "$@"; do
     rel_paths+=("${p#/}")
   done
 
-  # Maak tar vanaf / zodat je geen "Removing leading `/'" meer ziet
-  # Onderdruk tar warnings volledig voor een clean UI
   ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 \
     "${user}@${ip}" "sudo tar -C / -czf '${remote_file}' \
       --warning=no-file-changed \
@@ -295,10 +271,11 @@ success "Backup output: ${ZIP_PATH}"
 warn "Let op: deze backup bevat waarschijnlijk secrets (.env / tokens / VPN configs). Bewaar veilig!"
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
-
 REMOTE_TAR="/tmp/${OUT_NAME}.tar.gz"
 LOCAL_TAR="${TMP}/${OUT_NAME}.tar.gz"
+
+# Combine cleanup + spinner restore in one trap (prevents overwriting)
+trap 'rm -rf "$TMP"; _stop_spinner' EXIT INT TERM
 
 info "Tar maken op Docker VM..."
 remote_tar "$VM_USER" "$DOCKER_IP" "$REMOTE_TAR" "${REMOTE_PATHS[@]}"
@@ -321,8 +298,6 @@ success "ZIP klaar"
 info "Backup rotatie controleren (max 3 bewaren)..."
 
 mapfile -t ALL_BACKUPS < <(ls -1t "${BACKUP_DIR}"/docker-vm-backup-*.zip 2>/dev/null || true)
-
-# Alles vanaf #4 wordt verwijderd (dus ouder dan 3 nieuwste)
 mapfile -t OLD_BACKUPS < <(printf '%s\n' "${ALL_BACKUPS[@]}" | tail -n +4)
 
 if [[ ${#OLD_BACKUPS[@]} -gt 0 ]]; then
@@ -332,8 +307,15 @@ if [[ ${#OLD_BACKUPS[@]} -gt 0 ]]; then
     size=$(du -h "$file" | awk '{print $1}')
     echo -e "  ${RED_90}✗${NC} $(basename "$file") ${BLUE_90}(${size})${NC}"
   done
+
   echo ""
-  read -rp "  Verwijderen? (y/N): " confirm
+  echo -e "  ${PURPLE_90}Tip: eerst downloaden:${NC}"
+  for file in "${OLD_BACKUPS[@]}"; do
+    echo -e "  ${GREEN_90}scp root@${PROXMOX_IP}:${file} .${NC}"
+  done
+
+  echo ""
+  read -rp "  Verwijderen? (y/N) — kies N om eerst te downloaden: " confirm
 
   if [[ "${confirm,,}" == "y" ]]; then
     rm -f "${OLD_BACKUPS[@]}"
@@ -357,12 +339,8 @@ else
 fi
 echo ""
 
-echo ""
-
-echo ""
-echo ""
 echo -e "  ${PURPLE_90}Downloaden vanaf je laptop/mac:${NC}"
-echo -e "  ${GREEN_90}scp root@${PROXMOX_IP}:${ZIP_PATH}${NC}"
+echo -e "  ${GREEN_90}scp root@${PROXMOX_IP}:${ZIP_PATH} .${NC}"
 echo ""
 echo -e "  ${PURPLE_90}Uitpakken:${NC}"
 echo -e "  ${GREEN_90}unzip $(basename "$ZIP_PATH")${NC}"

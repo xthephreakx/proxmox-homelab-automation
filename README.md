@@ -103,6 +103,8 @@ new docker
 
 `deploy-stack.sh` deploys any Docker Compose stack to the Docker VM with automatic Traefik integration. Run it from your Mac — it handles everything from transformation to restart.
 
+> **Local requirements (Mac):** `python3` and `PyYAML` — used to transform and merge compose files before uploading. The script installs PyYAML automatically if missing (`pip3 install pyyaml`).
+
 ### Setup
 
 Copy the example config and fill in your values (gitignored, never committed):

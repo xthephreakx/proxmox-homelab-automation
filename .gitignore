@@ -1,6 +1,7 @@
 # Test folder volledig negeren
 /test/*
 /backups/*
+/rsync/*
 
 # Environment / secrets
 .env

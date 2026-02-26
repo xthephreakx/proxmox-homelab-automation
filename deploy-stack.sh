@@ -280,6 +280,12 @@ for svc_name, svc in services.items():
             for k, v in env.items()
         }
 
+# Hernoem target service naar stack_name om conflicten bij --add-to te voorkomen
+# (bv. service 'homepage' → 'homepage-eliza' zodat de originele niet wordt overschreven)
+if target_service != stack_name:
+    services[stack_name] = services.pop(target_service)
+    target_service = stack_name
+
 # Traefik + netwerk alleen op target service
 svc = services[target_service]
 
@@ -381,12 +387,17 @@ with open(existing_file, "r") as f:
 with open(new_file, "r") as f:
     new = yaml.safe_load(f)
 
-# Voeg nieuwe services toe (overschrijf bij conflict)
-for svc_name, svc in new.get("services", {}).items():
-    existing.setdefault("services", {})[svc_name] = svc
-    if svc_name != stack_name:
-        # Hernoem service naar stack_name als ze verschillen
-        pass
+# Voeg nieuwe services toe — gebruik stack_name als key om conflicten te voorkomen.
+# De transform stap heeft de hoofd-service al hernoemd naar stack_name;
+# extra services (bv. een database) worden onder hun eigen naam toegevoegd.
+new_services = new.get("services", {})
+for svc_name, svc in new_services.items():
+    # Als de service al stack_name heet (na transform) → gewoon toevoegen
+    # Als een andere service naam al bestaat in existing → gebruik stack_name als fallback
+    if svc_name in existing.get("services", {}) and svc_name != stack_name:
+        existing["services"][stack_name] = svc
+    else:
+        existing.setdefault("services", {})[svc_name] = svc
 
 # Voeg nieuwe volumes toe
 for vol_name, vol in new.get("volumes", {}).items():

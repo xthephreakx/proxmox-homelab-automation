@@ -158,9 +158,9 @@ install_jq() {
 # Variables
 # ==============================
 TEMPLATE_ID=9000
-TEMPLATE_NAME="ubuntu-jammy-template"
-IMAGE_NAME="jammy-server-cloudimg-amd64.img"
-IMAGE_URL="https://cloud-images.ubuntu.com/jammy/current/${IMAGE_NAME}"
+TEMPLATE_NAME="ubuntu-noble-template"
+IMAGE_NAME="noble-server-cloudimg-amd64.img"
+IMAGE_URL="https://cloud-images.ubuntu.com/noble/current/${IMAGE_NAME}"
 STORAGE="local-lvm"
 
 CONFIG_DIR="/opt/vmconfigs"

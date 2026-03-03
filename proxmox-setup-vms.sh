@@ -702,6 +702,7 @@ write_files:
       mkdir -p /mnt/docker-data/compose/audiobookshelf/config
       mkdir -p /mnt/docker-data/compose/audiobookshelf/metadata
       mkdir -p /mnt/docker-data/compose/komga/config
+      mkdir -p /mnt/docker-data/compose/homepage/config
       mkdir -p /mnt/docker-data/compose/tailscale
       mkdir -p /mnt/docker-data/compose/portainer
       mkdir -p /mnt/docker-data/compose/arrstack/wireguard/pia
@@ -978,6 +979,25 @@ write_files:
             - "traefik.http.routers.komga.tls.domains[0].main=*.${BASE_DOMAIN}"
             - "traefik.http.services.komga.loadbalancer.server.port=25600"
 
+        it-tools:
+          image: ghcr.io/corentinth/it-tools:latest
+          container_name: it-tools
+          restart: unless-stopped
+          networks:
+            - proxy
+          ports:
+            - 8399:8080
+          security_opt:
+            - no-new-privileges:true
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.it-tools.rule=Host(`it-tools.${BASE_DOMAIN}`)"
+            - "traefik.http.routers.it-tools.entrypoints=websecure"
+            - "traefik.http.routers.it-tools.tls=true"
+            - "traefik.http.routers.it-tools.tls.certresolver=le"
+            - "traefik.http.routers.it-tools.tls.domains[0].main=*.${BASE_DOMAIN}"
+            - "traefik.http.services.it-tools.loadbalancer.server.port=8080"
+
       networks:
         proxy:
           name: proxy
@@ -989,6 +1009,43 @@ write_files:
       fi
 
 ENDSNIPPET
+
+cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDHOMEPAGE'
+      # --- Homepage stack ---
+      mkdir -p /mnt/docker-data/compose/homepage/config
+      if [ ! -f /mnt/docker-data/compose/homepage/docker-compose.yml ]; then
+        cat > /mnt/docker-data/compose/homepage/docker-compose.yml <<'EOCOMPOSE'
+      services:
+        homepage:
+          image: ghcr.io/gethomepage/homepage:latest
+          container_name: homepage
+          restart: unless-stopped
+          networks:
+            - proxy
+          ports:
+            - 8320:3000
+          security_opt:
+            - no-new-privileges:true
+          volumes:
+            - /mnt/docker-data/compose/homepage/config:/app/config
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.homepage.rule=Host(`home.${BASE_DOMAIN}`)"
+            - "traefik.http.routers.homepage.entrypoints=websecure"
+            - "traefik.http.routers.homepage.tls=true"
+            - "traefik.http.routers.homepage.tls.certresolver=le"
+            - "traefik.http.routers.homepage.tls.domains[0].main=*.${BASE_DOMAIN}"
+            - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+
+      networks:
+        proxy:
+          external: true
+      EOCOMPOSE
+        echo "docker-compose.yml aangemaakt in homepage/"
+      else
+        echo "docker-compose.yml bestaat al in homepage/, overslaan"
+      fi
+ENDHOMEPAGE
 
 # --- WireGuard variant keuze voor arrstack ---
 if [[ "$WG_VARIANT" == "2" ]]; then

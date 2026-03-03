@@ -22,6 +22,7 @@ SCRIPTS=(
     "proxmox-test-docker-vm.sh"
     "proxmox-set-password.sh"
     "proxmox-backup-docker-files.sh"
+    "proxmox-restore-docker-files.sh"
 )
 
 # ==============================

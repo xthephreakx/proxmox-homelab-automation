@@ -57,6 +57,7 @@ SCRIPT_CLEANUP="$SCRIPT_DIR/proxmox-vm-cleanup.sh"
 SCRIPT_TEST_DOCKER="$SCRIPT_DIR/proxmox-test-docker-vm.sh"
 SCRIPT_SET_PASSWORD="$SCRIPT_DIR/proxmox-set-password.sh"
 SCRIPT_BACKUP_DOCKER_FILES="$SCRIPT_DIR/proxmox-backup-docker-files.sh"
+SCRIPT_RESTORE_DOCKER_FILES="$SCRIPT_DIR/proxmox-restore-docker-files.sh"
 
 # ===============================
 # Helper: check of script bestaat
@@ -123,6 +124,9 @@ show_menu() {
     echo -e "    ${GREEN_90}9${NC})  Backup Docker files"
     echo -e "         ${YELLOW_90}Backup compose/.env/traefik/wireguard naar ZIP voor scp download${NC}"
     echo ""
+    echo -e "    ${GREEN_90}10${NC}) Restore Docker files"
+    echo -e "         ${YELLOW_90}Zet een backup-ZIP terug naar de Docker VM${NC}"
+    echo ""
     echo -e "  ${PURPLE_90}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     echo -e "    ${RED_90}0${NC})  Afsluiten"
@@ -134,7 +138,7 @@ show_menu() {
 # ==============================
 while true; do
     show_menu
-    read -p "  Keuze [0-9]: " choice
+    read -p "  Keuze [0-10]: " choice
 
     case "$choice" in
         1)
@@ -244,6 +248,12 @@ while true; do
             warn "Deze backup bevat secrets (.env / tokens / VPN configs). Bewaar de ZIP veilig!"
             echo ""
             run_script "$SCRIPT_BACKUP_DOCKER_FILES"
+            echo ""
+            read -p "Druk op Enter om terug te gaan naar het menu..." _
+            ;;
+        10)
+            echo ""
+            run_script "$SCRIPT_RESTORE_DOCKER_FILES"
             echo ""
             read -p "Druk op Enter om terug te gaan naar het menu..." _
             ;;

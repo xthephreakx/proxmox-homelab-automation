@@ -434,7 +434,7 @@ MERGEEOF
     info "docker compose up -d..."
     # sudo nodig: Dockge-stacks zijn eigendom van root
     ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
-        "cd '${TARGET_PATH}' && sudo docker compose up -d --build 2>&1" \
+        "cd '${TARGET_PATH}' && sudo docker compose up -d 2>&1" \
         | while IFS= read -r line; do
             [[ "$line" =~ (Started|Running|Created|Built|Pulled) ]] && success "$line" || true
           done || true
@@ -470,15 +470,16 @@ EOF
 
     step "Bestanden uploaden"
     info "docker-compose.yml uploaden..."
-    scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no \
-        "$COMPOSE_OUT" "$ENV_FILE" \
-        "${VM_USER}@${VM_HOST}:${REMOTE_PATH}/" > /dev/null 2>&1
+    cat "$COMPOSE_OUT" | ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
+        "sudo tee '${REMOTE_PATH}/docker-compose.yml'" > /dev/null
+    cat "$ENV_FILE" | ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
+        "tee '${REMOTE_PATH}/.env'" > /dev/null
     success "Bestanden geüpload"
 
     step "Container starten"
     info "docker compose up --build..."
     ssh $SSH_OPTS "${VM_USER}@${VM_HOST}" \
-        "cd '${REMOTE_PATH}' && docker compose up -d --build 2>&1" \
+        "cd '${REMOTE_PATH}' && sudo docker compose up -d --build 2>&1" \
         | while IFS= read -r line; do
             [[ "$line" =~ (Started|Running|Created|Built|Pulled) ]] && success "$line" || true
           done

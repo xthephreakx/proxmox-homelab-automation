@@ -97,6 +97,15 @@ Then create a Docker VM:
 new docker
 ```
 
+### VM Profiles
+
+| Type | Cores | RAM | Disk | Description |
+|------|-------|-----|------|-------------|
+| `ubuntu` | 2 | 4 GB | 10G | Minimal Ubuntu server |
+| `ubuntu-large` | 2 | 32 GB | 100G | Ubuntu server with large resources |
+| `ubuntu-gui` | 4 | 12 GB | 50G | Ubuntu desktop environment |
+| `docker` | 2 | 20 GB | 50G | Docker host with Traefik + stacks |
+
 ---
 
 ## deploy-stack.sh — Stack deployer

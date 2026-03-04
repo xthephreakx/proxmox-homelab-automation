@@ -178,7 +178,7 @@ while true; do
             echo -e "  ${PURPLE_90}━━━ Kies VM type ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
             echo ""
             echo -e "    ${GREEN_90}1${NC})  ubuntu          ${YELLOW_90}2C / 4GB / 10G${NC}"
-            echo -e "    ${GREEN_90}2${NC})  ubuntu-large    ${YELLOW_90}2C / 12GB / 30G+60G+40G${NC}"
+            echo -e "    ${GREEN_90}2${NC})  ubuntu-large    ${YELLOW_90}2C / 32GB / 100G${NC}"
             echo -e "    ${GREEN_90}3${NC})  ubuntu-gui      ${YELLOW_90}4C / 12GB / 50G + desktop${NC}"
             echo -e "    ${GREEN_90}4${NC})  docker          ${YELLOW_90}2C / 20GB / 50G + SSD${NC}"
             echo ""

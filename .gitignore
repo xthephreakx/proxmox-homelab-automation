@@ -22,3 +22,4 @@ deploy.conf
 
 # macOS rommel
 .DS_Store
+.claude

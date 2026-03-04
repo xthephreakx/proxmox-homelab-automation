@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="Proxmox Configurate banner" width="1000">
+  <img src="assets/bannerv2.svg" alt="Proxmox Configurate banner" width="1000">
 </p>
 
 <p align="center">

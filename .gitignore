@@ -2,6 +2,7 @@
 /test/*
 /backups/*
 /rsync/*
+/usefull-scripts/*
 
 # Environment / secrets
 .env
@@ -9,6 +10,7 @@
 secrets/
 config.local.*
 deploy.conf
+traefi k-add.sh
 
 # Logs / temp / backups
 *.log

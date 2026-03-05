@@ -261,6 +261,17 @@ TAR_FILE="$(find "$TMP" -name "*.tar.gz" | head -1)"
 [[ -n "$TAR_FILE" ]] || fail "Geen .tar.gz gevonden in ZIP"
 success "ZIP uitgepakt"
 
+# SSH key herstellen indien aanwezig in backup
+if unzip -l "$ZIP_PATH" 2>/dev/null | grep -q "proxmox_vm_key$"; then
+  info "SSH key herstellen..."
+  unzip -q -j "$ZIP_PATH" "proxmox_vm_key" "proxmox_vm_key.pub" -d /root/.ssh/ 2>/dev/null || true
+  chmod 600 /root/.ssh/proxmox_vm_key
+  chmod 644 /root/.ssh/proxmox_vm_key.pub 2>/dev/null || true
+  success "SSH key hersteld → /root/.ssh/proxmox_vm_key"
+else
+  warn "Geen SSH key gevonden in backup — herstel handmatig of genereer een nieuwe"
+fi
+
 # Stacks stoppen op VM
 info "Stacks stoppen op ${VM_USER}@${DOCKER_IP}..."
 ssh_run "

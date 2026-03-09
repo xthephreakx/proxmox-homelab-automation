@@ -719,6 +719,7 @@ write_files:
       mkdir -p /mnt/docker-data/media/torrents/incomplete
       mkdir -p /mnt/docker-data/media/nzb
       mkdir -p /mnt/docker-data/media/other
+      mkdir -p /mnt/docker-data/media/watch
       mkdir -p /mnt/docker-data/backups
       chown -R 1000:1000 /mnt/docker-data/compose/suwayomi
       chown -R 1000:1000 /mnt/docker-data/media/mangas
@@ -856,6 +857,7 @@ write_files:
             - TZ=Europe/Amsterdam
           volumes:
             - /mnt/docker-data/compose/mylar/config:/config
+            - /mnt/docker-data/media/watch:/watch
             - /mnt/docker-data/media/comics:/comics
             - /mnt/docker-data/media/downloads:/downloads
           labels:

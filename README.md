@@ -231,7 +231,9 @@ cd /mnt/docker-data/compose/homelab && docker compose restart traefik
 | Service | URL | Direct Port | Description |
 |---------|-----|-------------|-------------|
 | Traefik | `https://traefik.${BASE_DOMAIN}` | 80 / 443 | Reverse proxy + TLS termination |
-
+| FileBrowser | `https://filebrowser.${BASE_DOMAIN}` | 80 | Web-based file manager |
+| IT-Tools | `https://it-tools.${BASE_DOMAIN}` | 8080 | Developer tools (sharevb fork) |
+| Homepage | `https://homepage.${BASE_DOMAIN}` | 3000 | Dashboard |
 | Mylar | `https://mylar.${BASE_DOMAIN}` | 8304 | Comics downloader |
 | Suwayomi | `https://suwayomi.${BASE_DOMAIN}` | 8316 | Manga reader |
 | Dockge | `https://dockge.${BASE_DOMAIN}` | 5001 | Docker Compose stack manager |

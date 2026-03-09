@@ -957,7 +957,7 @@ write_files:
             - "traefik.http.services.komga.loadbalancer.server.port=25600"
 
         it-tools:
-          image: ghcr.io/corentinth/it-tools:latest
+          image: ghcr.io/sharevb/it-tools:latest
           container_name: it-tools
           restart: unless-stopped
           networks:

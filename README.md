@@ -34,7 +34,7 @@
 
 This repo automates the full setup of a Proxmox VE homelab. A single script (`proxmox-setup-vms.sh`) generates cloud-init snippets, a shared library, VM configuration profiles, and a `new` CLI command. Running `new docker` provisions a VM that auto-configures Docker, Traefik (with wildcard SSL via Cloudflare DNS), and two Docker Compose stacks:
 
-- **homelab** — Traefik, Portainer, Mylar, Suwayomi, Dockge, Audiobookshelf, Komga, Tailscale
+- **homelab** — Traefik, Mylar, Suwayomi, Dockge, Audiobookshelf, Komga, Tailscale
 - **arrstack** — WireGuard VPN gateway + SABnzbd, Radarr, Sonarr, Bazarr, qBittorrent
 
 ---
@@ -66,7 +66,7 @@ Add a wildcard DNS record in your local DNS resolver (UniFi, Pi-hole, pfSense, e
 *.local.yourdomain.com  →  <Docker VM IP>
 ```
 
-This routes all subdomains (e.g. `portainer.local.yourdomain.com`) to Traefik running on the Docker VM.
+This routes all subdomains (e.g. `traefik.local.yourdomain.com`) to Traefik running on the Docker VM.
 
 ---
 
@@ -231,7 +231,7 @@ cd /mnt/docker-data/compose/homelab && docker compose restart traefik
 | Service | URL | Direct Port | Description |
 |---------|-----|-------------|-------------|
 | Traefik | `https://traefik.${BASE_DOMAIN}` | 80 / 443 | Reverse proxy + TLS termination |
-| Portainer | `https://portainer.${BASE_DOMAIN}` | 9000 | Docker management UI |
+
 | Mylar | `https://mylar.${BASE_DOMAIN}` | 8304 | Comics downloader |
 | Suwayomi | `https://suwayomi.${BASE_DOMAIN}` | 8316 | Manga reader |
 | Dockge | `https://dockge.${BASE_DOMAIN}` | 5001 | Docker Compose stack manager |

@@ -702,7 +702,7 @@ write_files:
       mkdir -p /mnt/docker-data/compose/komga/config
       mkdir -p /mnt/docker-data/compose/homepage/config
       mkdir -p /mnt/docker-data/compose/tailscale
-      mkdir -p /mnt/docker-data/compose/portainer
+
       mkdir -p /mnt/docker-data/compose/arrstack/wireguard/pia
       mkdir -p /mnt/docker-data/compose/arrstack/sabnzbd/config
       mkdir -p /mnt/docker-data/compose/arrstack/radarr/config
@@ -817,29 +817,6 @@ write_files:
             - "traefik.http.routers.traefik.tls.domains[0].main=*.${BASE_DOMAIN}"
             - "traefik.http.routers.traefik.tls.domains[0].sans=${BASE_DOMAIN}"
             - "traefik.http.routers.traefik.service=api@internal"
-
-        portainer:
-          image: portainer/portainer-ce:latest
-          container_name: portainer
-          restart: unless-stopped
-          security_opt:
-            - no-new-privileges:true
-          networks:
-            - proxy
-          ports:
-            - 9000:9000
-          volumes:
-            - /etc/localtime:/etc/localtime:ro
-            - /var/run/docker.sock:/var/run/docker.sock:ro
-            - /mnt/docker-data/compose/portainer:/data
-          labels:
-            - "traefik.enable=true"
-            - "traefik.http.routers.portainer.rule=Host(`portainer.${BASE_DOMAIN}`)"
-            - "traefik.http.routers.portainer.entrypoints=websecure"
-            - "traefik.http.routers.portainer.tls=true"
-            - "traefik.http.routers.portainer.tls.certresolver=le"
-            - "traefik.http.routers.portainer.tls.domains[0].main=*.${BASE_DOMAIN}"
-            - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 
         mylar:
           image: lscr.io/linuxserver/mylar3:latest

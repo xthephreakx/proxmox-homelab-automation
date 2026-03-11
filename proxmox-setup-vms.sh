@@ -1114,7 +1114,9 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/sabnzbd/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
           network_mode: service:wireguard
           depends_on:
             wireguard:
@@ -1311,7 +1313,9 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/sabnzbd/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
           network_mode: service:wireguard
           depends_on:
             wireguard:

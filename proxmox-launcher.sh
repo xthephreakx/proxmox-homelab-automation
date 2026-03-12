@@ -273,8 +273,8 @@ while true; do
                 info "Nieuwste versie ophalen van GitHub..."
                 stop_spinner
                 echo ""
-                bash -c "$(curl -fsSL "$INSTALL_SH")"
-                # install.sh biedt zelf aan om de launcher opnieuw te starten
+                FROM_LAUNCHER=1 bash -c "$(curl -fsSL "$INSTALL_SH")"
+                # FROM_LAUNCHER=1 zorgt dat install.sh de relaunch-prompt overslaat
             fi
             echo ""
             read -p "Druk op Enter om terug te gaan naar het menu..." _

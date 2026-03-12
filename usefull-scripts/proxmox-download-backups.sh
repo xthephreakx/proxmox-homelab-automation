@@ -164,9 +164,9 @@ for remote_file in "${TO_DOWNLOAD[@]}"; do
     local_name=$(basename "$remote_file")
     size=$(ssh $SSH_OPTS "${PVE_USER}@${PVE_HOST}" "du -h '$remote_file' | awk '{print \$1}'")
 
-    info "Downloaden: $local_name ($size)..."
+    printf "  ${YELLOW_90}↓${NC} %s  ${BLUE_90}(%s)${NC}\n" "$local_name" "$size"
     if scp $SSH_OPTS "${PVE_USER}@${PVE_HOST}:${remote_file}" \
-        "$LOCAL_BACKUP_DIR/$local_name" > /dev/null 2>&1; then
+        "$LOCAL_BACKUP_DIR/$local_name"; then
         success "$local_name  ($size)"
         DOWNLOADED=$((DOWNLOADED + 1))
     else

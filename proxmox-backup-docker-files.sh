@@ -297,38 +297,44 @@ zip -q -j "$ZIP_PATH" "$LOCAL_TAR"
 success "ZIP klaar"
 
 # ==============================
-# Backup rotatie (max 3 bewaren, met bevestiging)
+# Backup rotatie (max 7 bewaren)
+# Interactief: vraag bevestiging. In cron (geen TTY): automatisch verwijderen.
 # ==============================
-info "Backup rotatie controleren (max 3 bewaren)..."
+MAX_BACKUPS=7
+info "Backup rotatie controleren (max ${MAX_BACKUPS} bewaren)..."
 
 mapfile -t ALL_BACKUPS < <(ls -1t "${BACKUP_DIR}"/docker-vm-backup-*.zip 2>/dev/null || true)
-mapfile -t OLD_BACKUPS < <(printf '%s\n' "${ALL_BACKUPS[@]}" | tail -n +4)
+mapfile -t OLD_BACKUPS < <(printf '%s\n' "${ALL_BACKUPS[@]}" | tail -n +"$((MAX_BACKUPS + 1))")
 
 if [[ ${#OLD_BACKUPS[@]} -gt 0 ]]; then
-  warn "De volgende backups worden verwijderd:"
+  warn "De volgende backups worden verwijderd (ouder dan ${MAX_BACKUPS} versies):"
   echo ""
   for file in "${OLD_BACKUPS[@]}"; do
     size=$(du -h "$file" | awk '{print $1}')
     echo -e "  ${RED_90}✗${NC} $(basename "$file") ${BLUE_90}(${size})${NC}"
   done
-
   echo ""
-  echo -e "  ${PURPLE_90}Tip: eerst downloaden:${NC}"
-  for file in "${OLD_BACKUPS[@]}"; do
-    echo -e "  ${GREEN_90}scp root@${PROXMOX_IP}:${file} .${NC}"
-  done
 
-  echo ""
-  read -rp "  Verwijderen? (y/N) — kies N om eerst te downloaden: " confirm
-
-  if [[ "${confirm,,}" == "y" ]]; then
+  # In cron (geen TTY): automatisch verwijderen zonder prompt
+  if [[ ! -t 0 ]]; then
     rm -f "${OLD_BACKUPS[@]}"
-    success "Oude backups verwijderd"
+    success "Oude backups automatisch verwijderd (cron)"
   else
-    msg_skip "Rotatie overgeslagen — je kunt backups eerst downloaden"
+    echo -e "  ${PURPLE_90}Tip: eerst downloaden:${NC}"
+    for file in "${OLD_BACKUPS[@]}"; do
+      echo -e "  ${GREEN_90}scp root@${PROXMOX_IP}:${file} .${NC}"
+    done
+    echo ""
+    read -rp "  Verwijderen? (y/N) — kies N om eerst te downloaden: " confirm
+    if [[ "${confirm,,}" == "y" ]]; then
+      rm -f "${OLD_BACKUPS[@]}"
+      success "Oude backups verwijderd"
+    else
+      msg_skip "Rotatie overgeslagen — je kunt backups eerst downloaden"
+    fi
   fi
 else
-  msg_skip "Geen oude backups om te verwijderen (<= 3 aanwezig)"
+  msg_skip "Geen oude backups om te verwijderen (<= ${MAX_BACKUPS} aanwezig)"
 fi
 
 echo ""

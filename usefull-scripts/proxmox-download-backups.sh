@@ -51,11 +51,25 @@ stop_spinner() {
     fi
 }
 
-info()    { stop_spinner; spinner "$1" & SPINNER_PID=$!; tput civis 2>/dev/null || true; }
-success() { stop_spinner; printf "  ${GREEN_90}✓${NC} %s\n" "$1"; tput cnorm 2>/dev/null || true; }
-fail()    { stop_spinner; printf "  ${RED_90}✗${NC} %s\n" "$1"; tput cnorm 2>/dev/null || true; exit 1; }
-warn()    { stop_spinner; printf "  ${YELLOW_90}!${NC} %s\n" "$1"; tput cnorm 2>/dev/null || true; }
-step()    { stop_spinner; printf "\n${MAGENTA_90}▶${NC} %s\n" "$1"; }
+info()        { stop_spinner; spinner "$1" & SPINNER_PID=$!; tput civis 2>/dev/null || true; }
+success()     { stop_spinner; printf "  ${GREEN_90}✓${NC} %s\n" "$1"; tput cnorm 2>/dev/null || true; }
+fail()        { stop_spinner; printf "  ${RED_90}✗${NC} %s\n" "$1"; tput cnorm 2>/dev/null || true; exit 1; }
+warn()        { stop_spinner; printf "  ${YELLOW_90}!${NC} %s\n" "$1"; tput cnorm 2>/dev/null || true; }
+step()        { stop_spinner; printf "\n${MAGENTA_90}▶${NC} %s\n" "$1"; }
+downloading() { stop_spinner; printf "\r\033[K  ${BLUE_90}⟳${NC} %s\n" "$1"; tput cnorm 2>/dev/null || true; }
+
+progress_bar() {
+    local percent=$1
+    local desc="${2:-}"
+    local width=30
+    local filled=$((percent * width / 100))
+    local empty=$((width - filled))
+    local bar=""
+    for ((j=0; j<filled; j++)); do bar+="█"; done
+    for ((j=0; j<empty; j++)); do bar+="░"; done
+    printf "\r  ${GREEN_90}[${bar}]${NC} %3d%% - %-40s" "$percent" "$desc"
+    if [[ $percent -eq 100 ]]; then echo ""; fi
+}
 
 trap 'stop_spinner; tput cnorm 2>/dev/null || true' EXIT
 
@@ -163,14 +177,32 @@ FAILED=0
 for remote_file in "${TO_DOWNLOAD[@]}"; do
     local_name=$(basename "$remote_file")
     size=$(ssh $SSH_OPTS "${PVE_USER}@${PVE_HOST}" "du -h '$remote_file' | awk '{print \$1}'")
+    total_bytes=$(ssh $SSH_OPTS "${PVE_USER}@${PVE_HOST}" "stat -c%s '$remote_file'")
 
-    printf "  ${YELLOW_90}↓${NC} %s  ${BLUE_90}(%s)${NC}\n" "$local_name" "$size"
-    if scp $SSH_OPTS "${PVE_USER}@${PVE_HOST}:${remote_file}" \
-        "$LOCAL_BACKUP_DIR/$local_name"; then
+    downloading "$local_name  ($size)"
+    progress_bar 0 "$local_name"
+
+    scp $SSH_OPTS "${PVE_USER}@${PVE_HOST}:${remote_file}" \
+        "$LOCAL_BACKUP_DIR/$local_name" > /dev/null 2>&1 &
+    SCP_PID=$!
+
+    while kill -0 "$SCP_PID" 2>/dev/null; do
+        sleep 1
+        done_bytes=$(stat -f%z "$LOCAL_BACKUP_DIR/$local_name" 2>/dev/null || echo 0)
+        if [[ $total_bytes -gt 0 ]]; then
+            pct=$(( done_bytes * 100 / total_bytes ))
+            progress_bar "$pct" "$local_name"
+        fi
+    done
+
+    if wait "$SCP_PID"; then
+        progress_bar 100 "$local_name"
         success "$local_name  ($size)"
         DOWNLOADED=$((DOWNLOADED + 1))
     else
+        echo ""
         warn "$local_name — download mislukt"
+        rm -f "$LOCAL_BACKUP_DIR/$local_name"
         FAILED=$((FAILED + 1))
     fi
 done

@@ -269,15 +269,18 @@ while true; do
             echo ""
             if ! command -v curl &>/dev/null; then
                 warn "curl niet gevonden — kan niet updaten"
+                echo ""
+                read -p "Druk op Enter om terug te gaan naar het menu..." _
             else
                 info "Nieuwste versie ophalen van GitHub..."
                 stop_spinner
                 echo ""
                 FROM_LAUNCHER=1 bash -c "$(curl -fsSL "$INSTALL_SH")"
-                # FROM_LAUNCHER=1 zorgt dat install.sh de relaunch-prompt overslaat
+                echo ""
+                success "Scripts bijgewerkt — herstarten..."
+                sleep 1
+                exec bash "$SCRIPT_DIR/proxmox-launcher.sh"
             fi
-            echo ""
-            read -p "Druk op Enter om terug te gaan naar het menu..." _
             ;;
         0)
             echo ""

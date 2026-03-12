@@ -117,13 +117,16 @@ fi
 if [[ "$MODE" == "list" ]]; then
     step "Beschikbare backups op $PVE_HOST"
     echo ""
+    # Haal alle groottes in één SSH-verbinding op (voorkomt stdin-consumptie bug in while-loop)
+    REMOTE_SIZES=$(ssh $SSH_OPTS "${PVE_USER}@${PVE_HOST}" \
+        "du -h ${REMOTE_BACKUP_DIR}/docker-vm-backup-*.zip 2>/dev/null || true")
     while IFS= read -r file; do
-        size=$(ssh $SSH_OPTS "${PVE_USER}@${PVE_HOST}" "du -h '$file' | awk '{print \$1}'")
         local_name=$(basename "$file")
+        size=$(echo "$REMOTE_SIZES" | awk -v f="$file" '$0 ~ f {print $1}')
         if [[ -f "$LOCAL_BACKUP_DIR/$local_name" ]]; then
-            printf "  ${GREEN_90}✓${NC}  %-45s ${BLUE_90}%s${NC}  (lokaal aanwezig)\n" "$local_name" "$size"
+            printf "  ${GREEN_90}✓${NC}  %-45s ${BLUE_90}%s${NC}  (lokaal aanwezig)\n" "$local_name" "${size:-?}"
         else
-            printf "  ${YELLOW_90}↓${NC}  %-45s ${BLUE_90}%s${NC}\n" "$local_name" "$size"
+            printf "  ${YELLOW_90}↓${NC}  %-45s ${BLUE_90}%s${NC}\n" "$local_name" "${size:-?}"
         fi
     done <<< "$REMOTE_FILES"
     echo ""

@@ -233,6 +233,10 @@ remote_tar() {
       --warning=no-xdev \
       --exclude='**/ipc-socket' \
       --exclude='**/*.sock' \
+      --exclude='**/cache' \
+      --exclude='**/Cache' \
+      --exclude='**/logs' \
+      --exclude='**/log' \
       ${rel_paths[*]} >/dev/null 2>&1"
 }
 

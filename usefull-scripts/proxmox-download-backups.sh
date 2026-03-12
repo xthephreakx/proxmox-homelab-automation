@@ -196,7 +196,6 @@ for remote_file in "${TO_DOWNLOAD[@]}"; do
     done
 
     if wait "$SCP_PID"; then
-        progress_bar 100 "$local_name"
         success "$local_name  ($size)"
         DOWNLOADED=$((DOWNLOADED + 1))
     else

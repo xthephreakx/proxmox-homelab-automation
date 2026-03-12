@@ -832,6 +832,7 @@ write_files:
             - PUID=1000
             - PGID=1000
             - TZ=Europe/Amsterdam
+            - UMASK=002
           volumes:
             - /mnt/docker-data/compose/mylar/config:/config
             - /mnt/docker-data/media/watch:/watch

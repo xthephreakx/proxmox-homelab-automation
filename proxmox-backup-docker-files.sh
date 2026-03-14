@@ -237,6 +237,8 @@ remote_tar() {
       --exclude='**/Cache' \
       --exclude='**/logs' \
       --exclude='**/log' \
+      --exclude='**/Downloads' \
+      --exclude='**/downloads' \
       ${rel_paths[*]} >/dev/null 2>&1"
 }
 

@@ -231,14 +231,22 @@ remote_tar() {
       --warning=no-file-changed \
       --warning=no-file-removed \
       --warning=no-xdev \
-      --exclude='**/ipc-socket' \
-      --exclude='**/*.sock' \
-      --exclude='**/cache' \
-      --exclude='**/Cache' \
-      --exclude='**/logs' \
-      --exclude='**/log' \
-      --exclude='**/Downloads' \
-      --exclude='**/downloads' \
+      --exclude='ipc-socket' \
+      --exclude='*.sock' \
+      --exclude='cache' \
+      --exclude='Cache' \
+      --exclude='kcef' \
+      --exclude='logs' \
+      --exclude='log' \
+      --exclude='Downloads' \
+      --exclude='downloads' \
+      --exclude='*.cbr' \
+      --exclude='*.cbz' \
+      --exclude='*.epub' \
+      --exclude='*.pdf' \
+      --exclude='MediaCover' \
+      --exclude='*.db-wal' \
+      --exclude='*.db-shm' \
       ${rel_paths[*]} >/dev/null 2>&1"
 }
 

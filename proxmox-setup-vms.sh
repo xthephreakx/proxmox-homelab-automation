@@ -799,8 +799,10 @@ write_files:
           ports:
             - 80:80
             - 443:443
+            - 8080:8080
           environment:
             - TZ=Europe/Amsterdam
+            - UMASK=002
             - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
             - TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_EMAIL=${LE_EMAIL}
           volumes:
@@ -809,6 +811,12 @@ write_files:
             - /mnt/docker-data/compose/traefik/traefik.yml:/traefik.yml:ro
             - /mnt/docker-data/compose/traefik/acme.json:/acme.json
             - /mnt/docker-data/compose/traefik/config.yml:/config.yml:ro
+          healthcheck:
+            test: ["CMD-SHELL", "wget -q --spider --timeout=5 http://localhost:8082/ping || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
           labels:
             - "traefik.enable=true"
             - "traefik.http.routers.traefik.rule=Host(`traefik.${BASE_DOMAIN}`)"
@@ -839,6 +847,12 @@ write_files:
             - /mnt/docker-data/media/watch:/watch
             - /mnt/docker-data/media/comics:/comics
             - /mnt/docker-data/media/downloads:/downloads
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:8090/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
           labels:
             - "traefik.enable=true"
             - "traefik.http.routers.mylar.rule=Host(`mylar.${BASE_DOMAIN}`)"
@@ -859,9 +873,16 @@ write_files:
             - 8316:4567
           environment:
             - TZ=Europe/Amsterdam
+            - UMASK=002
           volumes:
             - /mnt/docker-data/compose/suwayomi:/home/suwayomi/.local/share/Tachidesk
             - /mnt/docker-data/media/mangas:/home/suwayomi/.local/share/Tachidesk/downloads
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:4567/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
           labels:
             - "traefik.enable=true"
             - "traefik.http.routers.suwayomi.rule=Host(`suwayomi.${BASE_DOMAIN}`)"
@@ -906,11 +927,18 @@ write_files:
             - 8309:80
           environment:
             - TZ=Europe/Amsterdam
+            - UMASK=002
           volumes:
             - /mnt/docker-data/media/audiobooks:/audiobooks
             - /mnt/docker-data/media/ebooks:/ebooks
             - /mnt/docker-data/compose/audiobookshelf/config:/config
             - /mnt/docker-data/compose/audiobookshelf/metadata:/metadata
+          healthcheck:
+            test: ["CMD-SHELL", "wget -q --spider --timeout=5 http://localhost:80/ || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 30s
           labels:
             - "traefik.enable=true"
             - "traefik.http.routers.audiobookshelf.rule=Host(`audiobookshelf.${BASE_DOMAIN}`)"
@@ -978,9 +1006,16 @@ write_files:
             - 8306:25600
           environment:
             - TZ=Europe/Amsterdam
+            - UMASK=002
           volumes:
             - /mnt/docker-data/compose/komga/config:/config
             - /mnt/docker-data/media/comics:/data
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:25600/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
           labels:
             - "traefik.enable=true"
             - "traefik.http.routers.komga.rule=Host(`komga.${BASE_DOMAIN}`)"
@@ -1000,6 +1035,12 @@ write_files:
             - 8399:8080
           security_opt:
             - no-new-privileges:true
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:8080/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 15s
           labels:
             - "traefik.enable=true"
             - "traefik.http.routers.it-tools.rule=Host(`it-tools.${BASE_DOMAIN}`)"
@@ -1008,6 +1049,53 @@ write_files:
             - "traefik.http.routers.it-tools.tls.certresolver=le"
             - "traefik.http.routers.it-tools.tls.domains[0].main=*.${BASE_DOMAIN}"
             - "traefik.http.services.it-tools.loadbalancer.server.port=8080"
+
+        dockerproxy:
+          image: ghcr.io/tecnativa/docker-socket-proxy:latest
+          container_name: dockerproxy
+          restart: unless-stopped
+          ports:
+            - 2375:2375
+          volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+          environment:
+            - CONTAINERS=1
+            - SERVICES=1
+            - TASKS=1
+            - INFO=1
+            - VERSION=1
+            - ALLOW_START=0
+            - ALLOW_STOP=0
+            - ALLOW_RESTARTS=0
+          healthcheck:
+            test: ["CMD-SHELL", "wget -q --spider --timeout=5 http://localhost:2375/version || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 15s
+
+        filebrowser:
+          image: gtstef/filebrowser:stable
+          container_name: filebrowser
+          restart: unless-stopped
+          environment:
+            - FILEBROWSER_CONFIG=data/config.yaml
+            - FILEBROWSER_DATABASE=data/database.db
+            - TZ=Europe/Amsterdam
+            - UMASK=002
+          volumes:
+            - /mnt/docker-data/compose/filebrowser/data:/home/filebrowser/data
+            - /mnt/docker-data:/files
+          networks:
+            - proxy
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.filebrowser.rule=Host(`filebrowser.${BASE_DOMAIN}`)"
+            - "traefik.http.routers.filebrowser.entrypoints=websecure"
+            - "traefik.http.routers.filebrowser.tls=true"
+            - "traefik.http.routers.filebrowser.tls.certresolver=le"
+            - "traefik.http.routers.filebrowser.tls.domains[0].main=*.${BASE_DOMAIN}"
+            - "traefik.http.services.filebrowser.loadbalancer.server.port=80"
 
       networks:
         proxy:
@@ -1156,6 +1244,12 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
             wireguard:
               condition: service_healthy
           restart: unless-stopped
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:8080/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
 
         radarr:
           image: lscr.io/linuxserver/radarr:latest
@@ -1176,6 +1270,12 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
             wireguard:
               condition: service_healthy
           restart: unless-stopped
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:7878/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
 
         sonarr:
           image: lscr.io/linuxserver/sonarr:latest
@@ -1196,6 +1296,12 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
             wireguard:
               condition: service_healthy
           restart: unless-stopped
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:8989/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
 
         bazarr:
           image: lscr.io/linuxserver/bazarr:latest
@@ -1207,12 +1313,20 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/bazarr/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
           network_mode: service:wireguard
           depends_on:
             wireguard:
               condition: service_healthy
           restart: unless-stopped
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:6767/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
 
         qbittorrent:
           image: lscr.io/linuxserver/qbittorrent:libtorrentv1-version-release-5.0.1_v1.2.19
@@ -1226,7 +1340,9 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/qbittorrent/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
           network_mode: service:wireguard
           depends_on:
             wireguard:
@@ -1362,6 +1478,12 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
             wireguard:
               condition: service_healthy
           restart: unless-stopped
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:8080/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
 
         radarr:
           image: lscr.io/linuxserver/radarr:latest
@@ -1382,6 +1504,12 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
             wireguard:
               condition: service_healthy
           restart: unless-stopped
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:7878/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
 
         sonarr:
           image: lscr.io/linuxserver/sonarr:latest
@@ -1402,6 +1530,12 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
             wireguard:
               condition: service_healthy
           restart: unless-stopped
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:8989/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
 
         bazarr:
           image: lscr.io/linuxserver/bazarr:latest
@@ -1413,12 +1547,20 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/bazarr/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
           network_mode: service:wireguard
           depends_on:
             wireguard:
               condition: service_healthy
           restart: unless-stopped
+          healthcheck:
+            test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:6767/ -o /dev/null || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
 
         qbittorrent:
           image: lscr.io/linuxserver/qbittorrent:libtorrentv1-version-release-5.0.1_v1.2.19
@@ -1432,7 +1574,9 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/qbittorrent/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
           network_mode: service:wireguard
           depends_on:
             wireguard:
@@ -1475,7 +1619,13 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDSNIPPET2'
       api:
         dashboard: true
 
+      # Healthcheck endpoint — intern poort 8082, geen HTTPS redirect
+      ping:
+        entryPoint: "ping"
+
       entryPoints:
+        ping:
+          address: ":8082"
         web:
           address: ":80"
           http:

@@ -1,0 +1,49 @@
+services:
+  beszel:
+    image: henrygd/beszel:latest
+    container_name: beszel
+    restart: unless-stopped
+    ports:
+      - "8350:8090"
+    volumes:
+      - /mnt/docker-data/compose/beszel/data:/beszel_data
+    networks:
+      - proxy
+    healthcheck:
+      test: ["CMD", "/beszel", "health", "--url", "http://localhost:8090"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.beszel.rule=Host(`beszel.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.beszel.entrypoints=websecure"
+      - "traefik.http.routers.beszel.tls=true"
+      - "traefik.http.routers.beszel.tls.certresolver=le"
+      - "traefik.http.routers.beszel.tls.domains[0].main=*.${BASE_DOMAIN}"
+      - "traefik.http.services.beszel.loadbalancer.server.port=8090"
+
+  beszel-agent:
+    image: henrygd/beszel-agent:latest
+    container_name: beszel-agent
+    restart: unless-stopped
+    # network_mode: host is vereist voor nauwkeurige host-netwerk monitoring.
+    # Dit betekent dat de agent NIET in de proxy-network zit — dat hoeft ook niet
+    # want de agent is geen web-service (geen Traefik nodig).
+    network_mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      # Publieke sleutel van de hub — gegenereerd bij "Add System" in de hub UI
+      - KEY=${BESZEL_KEY}
+      # Token per systeem — gegenereerd bij "Add System" in de hub UI
+      - TOKEN=${BESZEL_TOKEN}
+      # Hub URL zodat de agent outbound verbinding maakt (WebSocket mode)
+      - HUB_URL=http://192.168.187.200:8350
+      # Agent luistert op poort 45876 (standaard)
+      - LISTEN=45876
+
+networks:
+  proxy:
+    external: true

@@ -2,7 +2,6 @@
 /test/*
 /backups/*
 /usefull-scripts/*
-!/usefull-scripts/proxmox-download-backups.sh
 
 # Environment / secrets
 .env

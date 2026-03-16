@@ -91,7 +91,11 @@ echo -e "  ${MAGENTA}Start the launcher:${NC}"
 echo -e "  ${GREEN}${INSTALL_DIR}/proxmox-launcher.sh${NC}"
 echo ""
 
-read -rp "  Launch now? [Y/n] " launch
-if [[ "${launch,,}" != "n" ]]; then
-    exec bash "${INSTALL_DIR}/proxmox-launcher.sh"
+if [[ "${FROM_LAUNCHER:-0}" == "1" ]]; then
+    info "Scripts bijgewerkt — terug naar launcher menu"
+else
+    read -rp "  Launch now? [Y/n] " launch
+    if [[ "${launch,,}" != "n" ]]; then
+        exec bash "${INSTALL_DIR}/proxmox-launcher.sh"
+    fi
 fi

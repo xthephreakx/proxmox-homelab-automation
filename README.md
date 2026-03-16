@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="Proxmox Configurate banner" width="1000">
+  <img src="assets/bannerv2.svg" alt="Proxmox Configurate banner" width="1000">
 </p>
 
 <p align="center">
@@ -24,6 +24,7 @@
 - [Configuration](#configuration)
 - [Services](#services)
 - [Post-Install Notes](#post-install-notes)
+- [Backup Management](#backup-management)
 - [Troubleshooting](#troubleshooting)
 - [File Structure](#file-structure)
 - [Safety Notes](#safety-notes)
@@ -34,7 +35,7 @@
 
 This repo automates the full setup of a Proxmox VE homelab. A single script (`proxmox-setup-vms.sh`) generates cloud-init snippets, a shared library, VM configuration profiles, and a `new` CLI command. Running `new docker` provisions a VM that auto-configures Docker, Traefik (with wildcard SSL via Cloudflare DNS), and two Docker Compose stacks:
 
-- **homelab** — Traefik, Portainer, Mylar, Suwayomi, Dockge, Audiobookshelf, Komga, Tailscale
+- **homelab** — Traefik, Mylar, Suwayomi, Dockge, Audiobookshelf, Komga, Tailscale
 - **arrstack** — WireGuard VPN gateway + SABnzbd, Radarr, Sonarr, Bazarr (behind VPN) + qBittorrent (own network, port forwarding)
 
 ---
@@ -66,7 +67,7 @@ Add a wildcard DNS record in your local DNS resolver (UniFi, Pi-hole, pfSense, e
 *.local.yourdomain.com  →  <Docker VM IP>
 ```
 
-This routes all subdomains (e.g. `portainer.local.yourdomain.com`) to Traefik running on the Docker VM.
+This routes all subdomains (e.g. `traefik.local.yourdomain.com`) to Traefik running on the Docker VM.
 
 ---
 
@@ -83,6 +84,8 @@ Scripts are installed to `/opt/proxmox-setup/`. Run them in order using the laun
 ```bash
 ./proxmox-launcher.sh
 ```
+
+The launcher provides a numbered menu with all available scripts. Use **option 11** to download the latest version of all scripts directly from GitHub without leaving the menu.
 
 Or run the VM setup script directly:
 
@@ -231,13 +234,16 @@ cd /mnt/docker-data/compose/homelab && docker compose restart traefik
 | Service | URL | Direct Port | Description |
 |---------|-----|-------------|-------------|
 | Traefik | `https://traefik.${BASE_DOMAIN}` | 80 / 443 | Reverse proxy + TLS termination |
-| Portainer | `https://portainer.${BASE_DOMAIN}` | 9000 | Docker management UI |
+| FileBrowser | `https://filebrowser.${BASE_DOMAIN}` | 80 | Web-based file manager |
+| IT-Tools | `https://it-tools.${BASE_DOMAIN}` | 8080 | Developer tools (sharevb fork) |
+| Homepage | `https://homepage.${BASE_DOMAIN}` | 3000 | Dashboard |
 | Mylar | `https://mylar.${BASE_DOMAIN}` | 8304 | Comics downloader |
 | Suwayomi | `https://suwayomi.${BASE_DOMAIN}` | 8316 | Manga reader |
 | Dockge | `https://dockge.${BASE_DOMAIN}` | 5001 | Docker Compose stack manager |
 | Audiobookshelf | `https://audiobookshelf.${BASE_DOMAIN}` | 8309 | Audiobook and ebook server |
 | Komga | `https://komga.${BASE_DOMAIN}` | 8306 | Comics and ebook server |
 | Tailscale | (host network) | — | VPN access for Komga |
+| dockerproxy | (internal) | 2375 | Read-only Docker socket proxy for Homepage |
 
 ### Arrstack (behind WireGuard VPN)
 
@@ -257,6 +263,12 @@ SABnzbd, Radarr, Sonarr and Bazarr run with `network_mode: service:wireguard` �
 | qBittorrent | `https://qb.${BASE_DOMAIN}` | 8311 | 43398 TCP+UDP | Torrent client |
 
 qBittorrent runs on its own network (not behind WireGuard) for direct port forwarding support. Configure a port forward on your router for port `43398` (TCP+UDP) to the Docker VM IP. This allows peers to make inbound connections, which is required for seeding on private trackers.
+
+**Volume mounts per service:**
+- **SABnzbd:** `/downloads`, `/incomplete-downloads`, `/NZB`
+- **Radarr:** `/downloads`, `/incomplete-downloads`, `/NZB`, `/movies`
+- **Sonarr:** `/downloads`, `/incomplete-downloads`, `/NZB`, `/tvshows`
+- **Mylar:** `/comics`, `/downloads`, `/watch`
 
 ---
 
@@ -375,6 +387,43 @@ docker compose -f /mnt/docker-data/compose/arrstack/docker-compose.yml start sab
 
 These labels are already set in the generated `docker-compose.yml`. If you have an older setup without them, add the `service=` labels to each router in `arrstack/docker-compose.yml` and run `docker compose up -d`.
 
+### rsync exit 23 — NAS sync fails
+
+**Symptom:** `nas-pull-*.sh` reports `rsync exit 23` for comics or media folders.
+
+**Cause 1 — Synology metadata directories:** `@eaDir` folders synced from NAS to VM. Fixed by adding excludes to rsync options:
+```bash
+RSYNC_OPTS="-az --update --stats --exclude='@eaDir' --exclude='.*'"
+```
+
+**Cause 2 — File permissions:** Files downloaded by Mylar or other containers may have restrictive permissions (e.g. `600`, `----r-----`) that prevent `mediasync` from reading them.
+
+Fix existing files:
+```bash
+sudo find /mnt/docker-data/media -type f ! -perm -u+r -exec chmod u+r {} \;
+sudo find /mnt/docker-data/media -type f ! -perm -g+r -exec chmod g+r {} \;
+```
+
+Prevent future issues by ensuring containers have `UMASK=002` in their environment — this ensures new files are created as `664` (group-readable).
+
+---
+
+### Backup management
+
+Daily backups run automatically at 07:00 via cron (`proxmox-backup-docker-files.sh`). The backup includes all compose stacks, `.env` files, and `daemon.json` — but excludes `cache/`, `logs/` directories (regenerable). Max **7 backups** are kept on the Proxmox host; older ones are automatically deleted by cron.
+
+Download backups to your Mac using `proxmox-download-backups.sh`:
+
+```bash
+./usefull-scripts/proxmox-download-backups.sh           # download newest backup
+./usefull-scripts/proxmox-download-backups.sh --all     # download all missing backups
+./usefull-scripts/proxmox-download-backups.sh --list    # show available backups on server
+```
+
+> ⚠️ Backups contain secrets (`.env` / tokens / VPN configs) — store them securely and never commit them.
+
+---
+
 ### SSH host key warning after VM recreation
 
 When a new VM gets the same IP as a previous one, remove the old key:
@@ -400,6 +449,16 @@ deploy-stack.sh           # Deploy any Compose stack to the Docker VM with Traef
 deploy.conf               # Your local VM connection config (gitignored)
 deploy.conf.example       # Template — copy to deploy.conf and fill in values
 test/                     # Local compose files for testing/deploying (gitignored)
+
+usefull-scripts/
+  proxmox-download-backups.sh  # Download VM backups from Proxmox host to local Mac
+  vm-docker-restart.sh         # Restart individual containers or full stacks (respects depends_on)
+  vm-docker-update.sh          # Pull latest images and recreate containers
+  private/rsync/
+    nas-pull-media.sh          # NAS pulls new media from VM (run via Synology Task Scheduler)
+    nas-pull-books.sh          # NAS pulls books/comics/audiobooks from VM
+
+backups/                  # Local downloaded backups (gitignored)
 
 # Generated by proxmox-setup-vms.sh:
 /usr/local/bin/new               # Create new VMs

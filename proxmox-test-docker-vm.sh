@@ -304,20 +304,19 @@ else
 fi
 
 # ==============================
-# Test 8: Containers running (traefik + portainer)
+# Test 8: Containers running (traefik)
 # ==============================
 echo ""
-echo "━━━ Test 8: Containers (traefik + portainer) ━━━"
+echo "━━━ Test 8: Containers (traefik) ━━━"
 TRAEFIK_RUNNING=$(ssh_run "docker ps --format '{{.Names}}' | grep -qx traefik && echo yes || echo no" || echo no)
-PORTAINER_RUNNING=$(ssh_run "docker ps --format '{{.Names}}' | grep -qx portainer && echo yes || echo no" || echo no)
 
-if [[ "$TRAEFIK_RUNNING" == "yes" && "$PORTAINER_RUNNING" == "yes" ]]; then
-  pass "traefik en portainer draaien"
+if [[ "$TRAEFIK_RUNNING" == "yes" ]]; then
+  pass "traefik draait"
   ssh_run "docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'" || true
 else
-  fail "Niet alle verplichte containers draaien"
+  fail "Traefik draait niet"
   ((FAILED++))
-  info "traefik running: $TRAEFIK_RUNNING | portainer running: $PORTAINER_RUNNING"
+  info "traefik running: $TRAEFIK_RUNNING"
   echo ""
   info "docker ps -a:"
   ssh_run "docker ps -a --format 'table {{.Names}}\t{{.Status}}'" || true
@@ -342,21 +341,7 @@ else
 fi
 
 # ==============================
-# Test 10: Portainer reachable (localhost:9000)
-# ==============================
-echo ""
-echo "━━━ Test 10: Portainer (Port 9000) ━━━"
-PORTAINER_HTTP=$(ssh_run "curl -s -o /dev/null -w '%{http_code}' http://localhost:9000 2>/dev/null || true" || true)
-if [[ "$PORTAINER_HTTP" == "200" || "$PORTAINER_HTTP" == "307" || "$PORTAINER_HTTP" == "302" ]]; then
-  pass "Portainer bereikbaar"
-  info "URL: http://${VM_IP}:9000"
-else
-  warn "Portainer niet bereikbaar (HTTP ${PORTAINER_HTTP:-n/a})"
-  info "Check: ssh ${VM_USER}@${VM_IP} 'docker logs portainer --tail=200'"
-fi
-
-# ==============================
-# Test 11: Directory Structure (new layout)
+# Test 10: Directory Structure (new layout)
 # ==============================
 echo ""
 echo "━━━ Test 11: Directory structuur (/mnt/docker-data) ━━━"
@@ -554,7 +539,7 @@ if [[ $FAILED -eq 0 ]]; then
   echo "Toegang:"
   echo "  • SSH:          ssh ${VM_USER}@${VM_IP}"
   echo "  • Traefik:      http://${VM_IP}:8080"
-  echo "  • Portainer:    http://${VM_IP}:9000"
+
   echo "  • SABnzbd:      http://${VM_IP}:8301"
   echo "  • Radarr:       http://${VM_IP}:8302"
   echo "  • Sonarr:       http://${VM_IP}:8303"

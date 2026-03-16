@@ -1,7 +1,8 @@
 # Test folder volledig negeren
 /test/*
 /backups/*
-/rsync/*
+/usefull-scripts/*
+!/usefull-scripts/proxmox-download-backups.sh
 
 # Environment / secrets
 .env
@@ -9,6 +10,7 @@
 secrets/
 config.local.*
 deploy.conf
+traefi k-add.sh
 
 # Logs / temp / backups
 *.log
@@ -22,3 +24,5 @@ deploy.conf
 
 # macOS rommel
 .DS_Store
+.claude/
+.claudebackups/

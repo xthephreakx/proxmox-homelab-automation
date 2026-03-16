@@ -702,7 +702,7 @@ write_files:
       mkdir -p /mnt/docker-data/compose/komga/config
       mkdir -p /mnt/docker-data/compose/homepage/config
       mkdir -p /mnt/docker-data/compose/tailscale
-      mkdir -p /mnt/docker-data/compose/portainer
+
       mkdir -p /mnt/docker-data/compose/arrstack/wireguard/pia
       mkdir -p /mnt/docker-data/compose/arrstack/sabnzbd/config
       mkdir -p /mnt/docker-data/compose/arrstack/radarr/config
@@ -719,6 +719,7 @@ write_files:
       mkdir -p /mnt/docker-data/media/torrents/incomplete
       mkdir -p /mnt/docker-data/media/nzb
       mkdir -p /mnt/docker-data/media/other
+      mkdir -p /mnt/docker-data/media/watch
       mkdir -p /mnt/docker-data/backups
       chown -R 1000:1000 /mnt/docker-data/compose/suwayomi
       chown -R 1000:1000 /mnt/docker-data/media/mangas
@@ -817,29 +818,6 @@ write_files:
             - "traefik.http.routers.traefik.tls.domains[0].sans=${BASE_DOMAIN}"
             - "traefik.http.routers.traefik.service=api@internal"
 
-        portainer:
-          image: portainer/portainer-ce:latest
-          container_name: portainer
-          restart: unless-stopped
-          security_opt:
-            - no-new-privileges:true
-          networks:
-            - proxy
-          ports:
-            - 9000:9000
-          volumes:
-            - /etc/localtime:/etc/localtime:ro
-            - /var/run/docker.sock:/var/run/docker.sock:ro
-            - /mnt/docker-data/compose/portainer:/data
-          labels:
-            - "traefik.enable=true"
-            - "traefik.http.routers.portainer.rule=Host(`portainer.${BASE_DOMAIN}`)"
-            - "traefik.http.routers.portainer.entrypoints=websecure"
-            - "traefik.http.routers.portainer.tls=true"
-            - "traefik.http.routers.portainer.tls.certresolver=le"
-            - "traefik.http.routers.portainer.tls.domains[0].main=*.${BASE_DOMAIN}"
-            - "traefik.http.services.portainer.loadbalancer.server.port=9000"
-
         mylar:
           image: lscr.io/linuxserver/mylar3:latest
           container_name: mylar
@@ -854,8 +832,10 @@ write_files:
             - PUID=1000
             - PGID=1000
             - TZ=Europe/Amsterdam
+            - UMASK=002
           volumes:
             - /mnt/docker-data/compose/mylar/config:/config
+            - /mnt/docker-data/media/watch:/watch
             - /mnt/docker-data/media/comics:/comics
             - /mnt/docker-data/media/downloads:/downloads
           labels:
@@ -978,7 +958,7 @@ write_files:
             - "traefik.http.services.komga.loadbalancer.server.port=25600"
 
         it-tools:
-          image: ghcr.io/corentinth/it-tools:latest
+          image: ghcr.io/sharevb/it-tools:latest
           container_name: it-tools
           restart: unless-stopped
           networks:
@@ -1135,7 +1115,9 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/sabnzbd/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
           network_mode: service:wireguard
           depends_on:
             wireguard:
@@ -1152,7 +1134,10 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/radarr/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
+            - /mnt/docker-data/media/movies:/movies
           network_mode: service:wireguard
           depends_on:
             wireguard:
@@ -1169,7 +1154,10 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/sonarr/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
+            - /mnt/docker-data/media/tvshows:/tvshows
           network_mode: service:wireguard
           depends_on:
             wireguard:
@@ -1333,7 +1321,9 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/sabnzbd/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
           network_mode: service:wireguard
           depends_on:
             wireguard:
@@ -1350,7 +1340,10 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/radarr/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
+            - /mnt/docker-data/media/movies:/movies
           network_mode: service:wireguard
           depends_on:
             wireguard:
@@ -1367,7 +1360,10 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/sonarr/config:/config
-            - /mnt/docker-data/media:/media
+            - /mnt/docker-data/media/downloads:/downloads
+            - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
+            - /mnt/docker-data/media/nzb:/NZB
+            - /mnt/docker-data/media/tvshows:/tvshows
           network_mode: service:wireguard
           depends_on:
             wireguard:

@@ -59,6 +59,9 @@ SCRIPT_SET_PASSWORD="$SCRIPT_DIR/proxmox-set-password.sh"
 SCRIPT_BACKUP_DOCKER_FILES="$SCRIPT_DIR/proxmox-backup-docker-files.sh"
 SCRIPT_RESTORE_DOCKER_FILES="$SCRIPT_DIR/proxmox-restore-docker-files.sh"
 
+REPO_RAW="https://raw.githubusercontent.com/xthephreakx/proxmox-homelab-automation/main"
+INSTALL_SH="${REPO_RAW}/install.sh"
+
 # ===============================
 # Helper: check of script bestaat
 # ===============================
@@ -127,6 +130,11 @@ show_menu() {
     echo -e "    ${GREEN_90}10${NC}) Restore Docker files"
     echo -e "         ${YELLOW_90}Zet een backup-ZIP terug naar de Docker VM${NC}"
     echo ""
+    echo -e "  ${PURPLE_90}━━━ Updates ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "    ${GREEN_90}11${NC}) Scripts updaten van GitHub"
+    echo -e "         ${YELLOW_90}Download de nieuwste versie van alle scripts${NC}"
+    echo ""
     echo -e "  ${PURPLE_90}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     echo -e "    ${RED_90}0${NC})  Afsluiten"
@@ -138,7 +146,7 @@ show_menu() {
 # ==============================
 while true; do
     show_menu
-    read -p "  Keuze [0-10]: " choice
+    read -p "  Keuze [0-11]: " choice
 
     case "$choice" in
         1)
@@ -256,6 +264,23 @@ while true; do
             run_script "$SCRIPT_RESTORE_DOCKER_FILES"
             echo ""
             read -p "Druk op Enter om terug te gaan naar het menu..." _
+            ;;
+        11)
+            echo ""
+            if ! command -v curl &>/dev/null; then
+                warn "curl niet gevonden — kan niet updaten"
+                echo ""
+                read -p "Druk op Enter om terug te gaan naar het menu..." _
+            else
+                info "Nieuwste versie ophalen van GitHub..."
+                stop_spinner
+                echo ""
+                FROM_LAUNCHER=1 bash -c "$(curl -fsSL "$INSTALL_SH")"
+                echo ""
+                success "Scripts bijgewerkt — herstarten..."
+                sleep 1
+                exec bash "$SCRIPT_DIR/proxmox-launcher.sh"
+            fi
             ;;
         0)
             echo ""

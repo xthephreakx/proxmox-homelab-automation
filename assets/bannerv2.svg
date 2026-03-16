@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="960"
+     height="720"
+     viewBox="0 0 960 720">
+
+<defs>
+
+<filter id="premiumCRT">
+  <feTurbulence type="fractalNoise"
+                baseFrequency="0.0012"
+                numOctaves="1"
+                seed="8"
+                result="warp"/>
+  <feDisplacementMap in="SourceGraphic"
+                     in2="warp"
+                     scale="4.5"
+                     xChannelSelector="R"
+                     yChannelSelector="G"/>
+  <feGaussianBlur stdDeviation="1.2" result="soft"/>
+  <feMerge>
+    <feMergeNode in="soft"/>
+    <feMergeNode in="SourceGraphic"/>
+  </feMerge>
+</filter>
+
+<radialGradient id="vignette">
+  <stop offset="65%" stop-color="#000000" stop-opacity="0"/>
+  <stop offset="100%" stop-color="#000000" stop-opacity="0.75"/>
+</radialGradient>
+
+<!-- Static CRT scanlines pattern -->
+<pattern id="scanlines"
+         width="100%"
+         height="6"
+         patternUnits="userSpaceOnUse">
+  <rect width="100%" height="3" fill="#FF007C" opacity="0.08"/>
+  <rect y="3" width="100%" height="3" fill="#00F0FF" opacity="0.06"/>
+</pattern>
+
+<!-- Animated scanline beam gradient (top to bottom) -->
+<linearGradient id="scanBeam" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0%"   stop-color="#FF007C" stop-opacity="0"/>
+  <stop offset="45%"  stop-color="#FF007C" stop-opacity="0"/>
+  <stop offset="50%"  stop-color="#FF007C" stop-opacity="0.55"/>
+  <stop offset="52%"  stop-color="#00F0FF" stop-opacity="0.85"/>
+  <stop offset="54%"  stop-color="#FF007C" stop-opacity="0.55"/>
+  <stop offset="59%"  stop-color="#FF007C" stop-opacity="0"/>
+  <stop offset="100%" stop-color="#FF007C" stop-opacity="0"/>
+</linearGradient>
+
+<!-- Clip to banner bounds -->
+<clipPath id="bannerClip">
+  <rect width="960" height="720" rx="18"/>
+</clipPath>
+
+</defs>
+
+<!-- Background -->
+<rect width="960" height="720" fill="#0d1117" rx="18"/>
+
+<!-- Banner text -->
+<g filter="url(#premiumCRT)"
+   font-family="ui-monospace, Consolas, monospace"
+   font-size="42"
+   fill="#FF007C"
+   text-anchor="middle">
+
+  <text x="480" y="200">░░░█▀▀░█▀█░█▀█░█▀▀░▀█▀░█▀▀░█░█░█▀▄░█▀▀░░░</text>
+  <text x="480" y="260">░░░█░░░█░█░█░█░█▀▀░░█░░█░█░█░█░█▀▄░█▀▀░░░</text>
+  <text x="480" y="320">░░░▀▀▀░▀▀▀░▀░▀░▀░░░▀▀▀░▀▀▀░▀▀▀░▀░▀░▀▀▀░░░</text>
+  <text x="480" y="400">░░░░░░░█▀█░█▀▄░█▀█░█░█░█▄█░█▀█░█░█░░░░░░░</text>
+  <text x="480" y="460">░░░░░░░█▀▀░█▀▄░█░█░▄▀▄░█░█░█░█░▄▀▄░░░░░░░</text>
+  <text x="480" y="520">░░░░░░░▀░░░▀░▀░▀▀▀░▀░▀░▀░▀░▀▀▀░▀░▀░░░░░░░</text>
+
+</g>
+
+<!-- Static scanline overlay -->
+<rect width="960" height="720" fill="url(#scanlines)" pointer-events="none"/>
+
+<!-- Animated scanline beam — moves top to bottom, loops -->
+<rect clip-path="url(#bannerClip)"
+      x="0" y="-720"
+      width="960" height="1440"
+      fill="url(#scanBeam)"
+      pointer-events="none"
+      opacity="0.9">
+  <animateTransform
+    attributeName="transform"
+    type="translate"
+    from="0,0"
+    to="0,720"
+    dur="6s"
+    repeatCount="indefinite"
+    calcMode="linear"/>
+</rect>
+
+<!-- Brightness falloff -->
+<rect width="960" height="720" fill="url(#vignette)" pointer-events="none"/>
+
+</svg>

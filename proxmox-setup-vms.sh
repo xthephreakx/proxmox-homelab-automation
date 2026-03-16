@@ -1189,6 +1189,7 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
             - PGID=1000
             - TZ=Europe/Amsterdam
             - WEBUI_PORT=8311
+            - TORRENTING_PORT=43398
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/qbittorrent/config:/config
@@ -1394,6 +1395,7 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
             - PGID=1000
             - TZ=Europe/Amsterdam
             - WEBUI_PORT=8311
+            - TORRENTING_PORT=43398
           volumes:
             - /etc/localtime:/etc/localtime:ro
             - /mnt/docker-data/compose/arrstack/qbittorrent/config:/config

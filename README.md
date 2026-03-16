@@ -36,7 +36,7 @@
 This repo automates the full setup of a Proxmox VE homelab. A single script (`proxmox-setup-vms.sh`) generates cloud-init snippets, a shared library, VM configuration profiles, and a `new` CLI command. Running `new docker` provisions a VM that auto-configures Docker, Traefik (with wildcard SSL via Cloudflare DNS), and two Docker Compose stacks:
 
 - **homelab** — Traefik, Mylar, Suwayomi, Dockge, Audiobookshelf, Komga, Tailscale
-- **arrstack** — WireGuard VPN gateway + SABnzbd, Radarr, Sonarr, Bazarr, qBittorrent
+- **arrstack** — WireGuard VPN gateway + SABnzbd, Radarr, Sonarr, Bazarr (behind VPN) + qBittorrent (own network, port forwarding)
 
 ---
 
@@ -253,9 +253,16 @@ cd /mnt/docker-data/compose/homelab && docker compose restart traefik
 | Radarr | `https://radarr.${BASE_DOMAIN}` | 8302 | Movie management |
 | Sonarr | `https://sonarr.${BASE_DOMAIN}` | 8303 | TV show management |
 | Bazarr | `https://bazarr.${BASE_DOMAIN}` | 6767 | Subtitle management |
-| qBittorrent | `https://qb.${BASE_DOMAIN}` | 8311 | Torrent client |
 
-All arrstack services run with `network_mode: service:wireguard` — all traffic is routed through the WireGuard container.
+SABnzbd, Radarr, Sonarr and Bazarr run with `network_mode: service:wireguard` — all traffic is routed through the WireGuard container.
+
+### qBittorrent (own network)
+
+| Service | URL | Direct Port | Torrent Port | Description |
+|---------|-----|-------------|--------------|-------------|
+| qBittorrent | `https://qb.${BASE_DOMAIN}` | 8311 | 43398 TCP+UDP | Torrent client |
+
+qBittorrent runs on its own network (not behind WireGuard) for direct port forwarding support. Configure a port forward on your router for port `43398` (TCP+UDP) to the Docker VM IP. This allows peers to make inbound connections, which is required for seeding on private trackers.
 
 **Volume mounts per service:**
 - **SABnzbd:** `/downloads`, `/incomplete-downloads`, `/NZB`
@@ -314,8 +321,10 @@ After a WireGuard restart, restart the arr containers to re-attach their network
 
 ```bash
 cd /mnt/docker-data/compose/arrstack
-docker compose restart sabnzbd radarr sonarr bazarr qbittorrent
+docker compose restart sabnzbd radarr sonarr bazarr
 ```
+
+> qBittorrent runs on its own network and does not need to be restarted after a WireGuard restart.
 
 ---
 

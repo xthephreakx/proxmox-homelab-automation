@@ -35,7 +35,7 @@
 
 This repo automates the full setup of a Proxmox VE homelab. A single script (`proxmox-setup-vms.sh`) generates cloud-init snippets, a shared library, VM configuration profiles, and a `new` CLI command. Running `new docker` provisions a VM that auto-configures Docker, Traefik (with wildcard SSL via Cloudflare DNS), and two Docker Compose stacks:
 
-- **homelab** — Traefik, Mylar, Suwayomi, Dockge, Audiobookshelf, Komga, Tailscale
+- **homelab** — Traefik, Mylar, Suwayomi, Dockge, Audiobookshelf, Komga, Tailscale (Komga + Audiobookshelf)
 - **arrstack** — WireGuard VPN gateway + SABnzbd, Radarr, Sonarr, Bazarr (behind VPN) + qBittorrent (own network, port forwarding)
 
 ---
@@ -191,7 +191,8 @@ nano /mnt/docker-data/compose/homelab/.env
 | `LE_EMAIL` | `me@example.com` | Email for Let's Encrypt account registration |
 | `CF_DNS_API_TOKEN` | `<token>` | Cloudflare token with Zone:DNS:Edit — required for wildcard cert |
 | `TRAEFIK_DASHBOARD_AUTH` | (optional) | htpasswd string for Traefik dashboard basic auth |
-| `TS_AUTHKEY` | `tskey-auth-...` | Tailscale auth key for Komga Tailscale access |
+| `TS_AUTHKEY` | `tskey-auth-...` | Tailscale auth key for `komga-ts` node — share Komga with friends |
+| `TS_AUTHKEY_AUDIOBOOK` | `tskey-auth-...` | Tailscale auth key for `audiobook-ts` node — share Audiobookshelf with friends |
 
 For the arrstack, edit `/mnt/docker-data/compose/arrstack/.env`:
 
@@ -242,7 +243,8 @@ cd /mnt/docker-data/compose/homelab && docker compose restart traefik
 | Dockge | `https://dockge.${BASE_DOMAIN}` | 5001 | Docker Compose stack manager |
 | Audiobookshelf | `https://audiobookshelf.${BASE_DOMAIN}` | 8309 | Audiobook and ebook server |
 | Komga | `https://komga.${BASE_DOMAIN}` | 8306 | Comics and ebook server |
-| Tailscale | (host network) | — | VPN access for Komga |
+| tailscale-komga | `https://komga-ts.<tailnet>.ts.net` | — | Tailscale Serve — share Komga with friends |
+| tailscale-audiobook | `https://audiobook-ts.<tailnet>.ts.net` | — | Tailscale Serve — share Audiobookshelf with friends |
 | dockerproxy | (internal) | 2375 | Read-only Docker socket proxy for Homepage |
 
 ### Arrstack (behind WireGuard VPN)
@@ -294,6 +296,20 @@ sed -i "/^\[misc\]/a host_whitelist = sabnzbd.local.yourdomain.com" "$SABNZBD_IN
 # Restart
 docker compose start sabnzbd
 ```
+
+### Tailscale — Serve setup + node sharing
+
+Both Tailscale containers (`tailscale-komga` and `tailscale-audiobook`) use `TS_SERVE_CONFIG` to proxy Komga and Audiobookshelf over HTTPS on your tailnet. Generate auth keys at [tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys) and add them to `.env`:
+
+```bash
+TS_AUTHKEY=tskey-auth-...           # for komga-ts
+TS_AUTHKEY_AUDIOBOOK=tskey-auth-... # for audiobook-ts
+```
+
+To share with friends, go to [tailscale.com/admin/machines](https://login.tailscale.com/admin/machines), click the node (`komga-ts` or `audiobook-ts`) → **Share** → enter their email. Friends accept the invite in their Tailscale app and can then access:
+
+- `https://komga-ts.<tailnet>.ts.net` — Komga
+- `https://audiobook-ts.<tailnet>.ts.net` — Audiobookshelf
 
 ### WireGuard — VPN credentials
 

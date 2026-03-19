@@ -702,6 +702,7 @@ write_files:
       mkdir -p /mnt/docker-data/compose/komga/config
       mkdir -p /mnt/docker-data/compose/homepage/config
       mkdir -p /mnt/docker-data/compose/tailscale
+      mkdir -p /mnt/docker-data/compose/tailscale-audiobook
 
       mkdir -p /mnt/docker-data/compose/arrstack/wireguard/pia
       mkdir -p /mnt/docker-data/compose/arrstack/sabnzbd/config
@@ -769,11 +770,11 @@ write_files:
         echo "LE_EMAIL=me@example.com" >> /mnt/docker-data/compose/homelab/.env
         echo "CF_DNS_API_TOKEN=change-me" >> /mnt/docker-data/compose/homelab/.env
         echo "TRAEFIK_DASHBOARD_AUTH=" >> /mnt/docker-data/compose/homelab/.env
-        echo "# Tailscale auth key (vul in voor komga via Tailscale)" >> /mnt/docker-data/compose/homelab/.env
-        echo "# Genereer op: https://login.tailscale.com/admin/settings/keys" >> /mnt/docker-data/compose/homelab/.env
+        echo "# Tailscale auth keys — genereer op: https://login.tailscale.com/admin/settings/keys" >> /mnt/docker-data/compose/homelab/.env
         echo "TS_AUTHKEY=tskey-auth-CHANGE-ME" >> /mnt/docker-data/compose/homelab/.env
+        echo "TS_AUTHKEY_AUDIOBOOK=tskey-auth-CHANGE-ME" >> /mnt/docker-data/compose/homelab/.env
         chmod 600 /mnt/docker-data/compose/homelab/.env
-        echo ".env aangemaakt (pas BASE_DOMAIN, LE_EMAIL, CF_DNS_API_TOKEN, TS_AUTHKEY aan!)"
+        echo ".env aangemaakt (pas BASE_DOMAIN, LE_EMAIL, CF_DNS_API_TOKEN, TS_AUTHKEY, TS_AUTHKEY_AUDIOBOOK aan!)"
       else
         grep -q "^BASE_DOMAIN=" /mnt/docker-data/compose/homelab/.env || echo "BASE_DOMAIN=local.yourdomain.com" >> /mnt/docker-data/compose/homelab/.env
         grep -q "^LE_EMAIL=" /mnt/docker-data/compose/homelab/.env || echo "LE_EMAIL=me@example.com" >> /mnt/docker-data/compose/homelab/.env
@@ -919,9 +920,9 @@ write_files:
             - "traefik.http.routers.audiobookshelf.tls.domains[0].main=*.${BASE_DOMAIN}"
             - "traefik.http.services.audiobookshelf.loadbalancer.server.port=80"
 
-        tailscale:
+        tailscale-komga:
           image: tailscale/tailscale:latest
-          container_name: tailscale
+          container_name: tailscale-komga
           hostname: komga-ts
           restart: unless-stopped
           network_mode: host
@@ -931,9 +932,41 @@ write_files:
           volumes:
             - /mnt/docker-data/compose/tailscale:/var/lib/tailscale
             - /dev/net/tun:/dev/net/tun
+            - ./tailscale-komga-serve.json:/serve/serve.json:ro
           environment:
             - TS_AUTHKEY=${TS_AUTHKEY}
             - TS_STATE_DIR=/var/lib/tailscale
+            - TS_SERVE_CONFIG=/serve/serve.json
+          healthcheck:
+            test: ["CMD-SHELL", "tailscale status --peers=false 2>&1 | grep -q '^[0-9]' || exit 1"]
+            interval: 60s
+            timeout: 10s
+            retries: 3
+            start_period: 30s
+
+        tailscale-audiobook:
+          image: tailscale/tailscale:latest
+          container_name: tailscale-audiobook
+          hostname: audiobook-ts
+          restart: unless-stopped
+          network_mode: host
+          cap_add:
+            - NET_ADMIN
+            - SYS_MODULE
+          volumes:
+            - /mnt/docker-data/compose/tailscale-audiobook:/var/lib/tailscale
+            - /dev/net/tun:/dev/net/tun
+            - ./tailscale-audiobook-serve.json:/serve/serve.json:ro
+          environment:
+            - TS_AUTHKEY=${TS_AUTHKEY_AUDIOBOOK}
+            - TS_STATE_DIR=/var/lib/tailscale
+            - TS_SERVE_CONFIG=/serve/serve.json
+          healthcheck:
+            test: ["CMD-SHELL", "tailscale status --peers=false 2>&1 | grep -q '^[0-9]' || exit 1"]
+            interval: 60s
+            timeout: 10s
+            retries: 3
+            start_period: 30s
 
         komga:
           image: gotson/komga

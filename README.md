@@ -403,6 +403,23 @@ docker compose -f /mnt/docker-data/compose/arrstack/docker-compose.yml start sab
 
 These labels are already set in the generated `docker-compose.yml`. If you have an older setup without them, add the `service=` labels to each router in `arrstack/docker-compose.yml` and run `docker compose up -d`.
 
+### Suwayomi downloads failing — "No such file or directory"
+
+**Symptom:** Suwayomi shows a download error; logs contain `java.io.IOException: No such file or directory` pointing to `ArchiveProvider.kt`.
+
+**Cause:** Suwayomi writes downloads to `/mnt/docker-data/media/mangas/mangas/<SourceName>/<MangaTitle>/<Chapter>/`. When this directory is synced from the NAS by the `mediasync` user, the source-named subdirectory (e.g. `Weeb Central (EN)/`) may get `drwxr-x---` permissions — group has read+execute but **no write**. When Suwayomi (running as `pasta`, UID 1000, in the `pasta` group) tries to create a chapter subdirectory, it fails with ENOENT.
+
+**Fix — existing installation:**
+```bash
+chmod -R g+ws /mnt/docker-data/media/mangas
+```
+
+The `g+w` gives the group write permission; `g+s` (setgid) ensures new subdirectories automatically inherit the group and permissions.
+
+**Prevention:** `proxmox-setup-vms.sh` and `nas-initial-push.sh` both apply this chmod automatically. If you sync mangas from the NAS manually, always run the chmod afterward.
+
+---
+
 ### rsync exit 23 — NAS sync fails
 
 **Symptom:** `nas-pull-*.sh` reports `rsync exit 23` for comics or media folders.

@@ -714,6 +714,7 @@ write_files:
       mkdir -p /mnt/docker-data/media/ebooks
       mkdir -p /mnt/docker-data/media/comics
       mkdir -p /mnt/docker-data/media/mangas
+      mkdir -p /mnt/docker-data/media/mangas/mangas
       mkdir -p /mnt/docker-data/media/movies
       mkdir -p /mnt/docker-data/media/tvshows
       mkdir -p /mnt/docker-data/media/downloads/incomplete
@@ -724,6 +725,9 @@ write_files:
       mkdir -p /mnt/docker-data/backups
       chown -R 1000:1000 /mnt/docker-data/compose/suwayomi
       chown -R 1000:1000 /mnt/docker-data/media/mangas
+      # Suwayomi schrijft naar mangas/<source-naam>/<manga-naam>/ — groep heeft schrijfrechten nodig
+      # zodat zowel mediasync (NAS sync) als pasta (container user) kunnen schrijven
+      chmod -R g+ws /mnt/docker-data/media/mangas
       chown -R 1000:1000 /mnt/docker-data/compose/mylar
       chown -R 1000:1000 /mnt/docker-data/media/comics
       chown -R 1000:1000 /mnt/docker-data/media/downloads
@@ -1176,9 +1180,6 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
             - 8302:7878  # radarr
             - 8303:8989  # sonarr
             - 6767:6767  # bazarr
-            - 8311:8311  # qbittorrent webui
-            - 43398:43398
-            - 43398:43398/udp
           sysctls:
             - net.ipv4.conf.all.src_valid_mark=1
           restart: unless-stopped
@@ -1218,13 +1219,6 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
             - "traefik.http.services.bazarr.loadbalancer.server.port=6767"
             - "traefik.http.routers.bazarr.service=bazarr"
             - "traefik.http.routers.bazarr.tls.domains[0].main=*.${BASE_DOMAIN}"
-            - "traefik.http.routers.qbittorrent.rule=Host(`qb.${BASE_DOMAIN}`)"
-            - "traefik.http.routers.qbittorrent.entrypoints=websecure"
-            - "traefik.http.routers.qbittorrent.tls=true"
-            - "traefik.http.routers.qbittorrent.tls.certresolver=le"
-            - "traefik.http.services.qbittorrent.loadbalancer.server.port=8311"
-            - "traefik.http.routers.qbittorrent.service=qbittorrent"
-            - "traefik.http.routers.qbittorrent.tls.domains[0].main=*.${BASE_DOMAIN}"
 
         sabnzbd:
           image: lscr.io/linuxserver/sabnzbd:latest
@@ -1343,10 +1337,21 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_DEFAULT'
             - /mnt/docker-data/media/downloads:/downloads
             - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
             - /mnt/docker-data/media/nzb:/NZB
-          network_mode: service:wireguard
-          depends_on:
-            wireguard:
-              condition: service_healthy
+          ports:
+            - 8311:8311
+            - 43398:43398
+            - 43398:43398/udp
+          networks:
+            - proxy
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.qbittorrent.rule=Host(`qb.${BASE_DOMAIN}`)"
+            - "traefik.http.routers.qbittorrent.entrypoints=websecure"
+            - "traefik.http.routers.qbittorrent.tls=true"
+            - "traefik.http.routers.qbittorrent.tls.certresolver=le"
+            - "traefik.http.routers.qbittorrent.service=qbittorrent"
+            - "traefik.http.services.qbittorrent.loadbalancer.server.port=8311"
+            - "traefik.http.routers.qbittorrent.tls.domains[0].main=*.${BASE_DOMAIN}"
           restart: unless-stopped
 
       networks:
@@ -1410,9 +1415,6 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
             - 8302:7878  # radarr
             - 8303:8989  # sonarr
             - 6767:6767  # bazarr
-            - 8311:8311  # qbittorrent webui
-            - 43398:43398
-            - 43398:43398/udp
           sysctls:
             - net.ipv4.conf.all.src_valid_mark=1
           restart: unless-stopped
@@ -1452,13 +1454,6 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
             - "traefik.http.services.bazarr.loadbalancer.server.port=6767"
             - "traefik.http.routers.bazarr.service=bazarr"
             - "traefik.http.routers.bazarr.tls.domains[0].main=*.${BASE_DOMAIN}"
-            - "traefik.http.routers.qbittorrent.rule=Host(`qb.${BASE_DOMAIN}`)"
-            - "traefik.http.routers.qbittorrent.entrypoints=websecure"
-            - "traefik.http.routers.qbittorrent.tls=true"
-            - "traefik.http.routers.qbittorrent.tls.certresolver=le"
-            - "traefik.http.services.qbittorrent.loadbalancer.server.port=8311"
-            - "traefik.http.routers.qbittorrent.service=qbittorrent"
-            - "traefik.http.routers.qbittorrent.tls.domains[0].main=*.${BASE_DOMAIN}"
 
         sabnzbd:
           image: lscr.io/linuxserver/sabnzbd:latest
@@ -1577,10 +1572,21 @@ cat >> "$SNIPPET_DIR/ubuntu-docker.yaml" << 'ENDARRSTACK_PIA'
             - /mnt/docker-data/media/downloads:/downloads
             - /mnt/docker-data/media/downloads/incomplete:/incomplete-downloads
             - /mnt/docker-data/media/nzb:/NZB
-          network_mode: service:wireguard
-          depends_on:
-            wireguard:
-              condition: service_healthy
+          ports:
+            - 8311:8311
+            - 43398:43398
+            - 43398:43398/udp
+          networks:
+            - proxy
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.qbittorrent.rule=Host(`qb.${BASE_DOMAIN}`)"
+            - "traefik.http.routers.qbittorrent.entrypoints=websecure"
+            - "traefik.http.routers.qbittorrent.tls=true"
+            - "traefik.http.routers.qbittorrent.tls.certresolver=le"
+            - "traefik.http.routers.qbittorrent.service=qbittorrent"
+            - "traefik.http.services.qbittorrent.loadbalancer.server.port=8311"
+            - "traefik.http.routers.qbittorrent.tls.domains[0].main=*.${BASE_DOMAIN}"
           restart: unless-stopped
 
       networks:

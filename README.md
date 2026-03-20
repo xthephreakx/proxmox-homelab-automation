@@ -35,7 +35,7 @@
 
 This repo automates the full setup of a Proxmox VE homelab. A single script (`proxmox-setup-vms.sh`) generates cloud-init snippets, a shared library, VM configuration profiles, and a `new` CLI command. Running `new docker` provisions a VM that auto-configures Docker, Traefik (with wildcard SSL via Cloudflare DNS), and two Docker Compose stacks:
 
-- **homelab** — Traefik, Mylar, Suwayomi, Dockge, Audiobookshelf, Komga, Tailscale (Komga + Audiobookshelf via Serve)
+- **homelab** — Traefik, Mylar, Suwayomi, Dockge, Audiobookshelf, Komga, Wishthis, Tailscale (Komga + Audiobookshelf via Serve)
 - **arrstack** — WireGuard VPN gateway + SABnzbd, Radarr, Sonarr, Bazarr (behind VPN) + qBittorrent (own network, port forwarding)
 
 ---
@@ -245,6 +245,7 @@ cd /mnt/docker-data/compose/homelab && docker compose restart traefik
 | Komga | `https://komga.${BASE_DOMAIN}` | 8306 | Comics and ebook server |
 | tailscale-komga | `https://komga-ts.<tailnet>.ts.net` | — | Tailscale Serve — share Komga with friends |
 | tailscale-audiobook | `https://audiobook-ts.<tailnet>.ts.net` | — | Tailscale Serve — share Audiobookshelf with friends |
+| Wishthis | `https://wishthis.${BASE_DOMAIN}` | 8320 | Wishlist manager |
 | dockerproxy | (internal) | 2375 | Read-only Docker socket proxy for Homepage |
 
 ### Arrstack (behind WireGuard VPN)
@@ -417,6 +418,37 @@ chmod -R g+ws /mnt/docker-data/media/comics/Mangas
 The `g+w` gives the group write permission; `g+s` (setgid) ensures new subdirectories automatically inherit the group and permissions.
 
 **Prevention:** `proxmox-setup-vms.sh` and `nas-initial-push.sh` both apply this chmod automatically. If you sync mangas from the NAS manually, always run the chmod afterward.
+
+---
+
+### Wishthis — database connection failed on first install
+
+**Symptom:** Wishthis installer shows "SQLSTATE[HY000] [2002] No such file or directory" or "Database connection failed".
+
+**Cause 1 — Wrong host:** The installer defaults to `localhost`. PHP treats `localhost` as a Unix socket, which doesn't exist in a separate container. Use `wishthis-db` (the container name) as the host.
+
+**Cause 2 — Insufficient privileges:** The `wishthis` DB user needs `ALL PRIVILEGES` on the `wishthis` database to create tables. Grant them manually:
+
+```bash
+# Get the generated root password from the MariaDB startup logs
+docker logs wishthis-db 2>&1 | grep "GENERATED ROOT PASSWORD"
+
+# Grant privileges
+docker exec wishthis-db mariadb -u root -p'<root-password>' \
+  -e "GRANT ALL PRIVILEGES ON wishthis.* TO 'wishthis'@'%'; FLUSH PRIVILEGES;"
+
+# Restart wishthis so it reconnects
+docker restart wishthis
+```
+
+Then fill in the installer with:
+
+| Field | Value |
+|-------|-------|
+| Host | `wishthis-db` |
+| Name | `wishthis` |
+| Username | `wishthis` |
+| Password | *(value of `WISHTHIS_DB_PASS` in `.env`)* |
 
 ---
 

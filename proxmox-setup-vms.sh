@@ -713,8 +713,7 @@ write_files:
       mkdir -p /mnt/docker-data/media/audiobooks
       mkdir -p /mnt/docker-data/media/ebooks
       mkdir -p /mnt/docker-data/media/comics
-      mkdir -p /mnt/docker-data/media/mangas
-      mkdir -p /mnt/docker-data/media/mangas/mangas
+      mkdir -p /mnt/docker-data/media/comics/Mangas
       mkdir -p /mnt/docker-data/media/movies
       mkdir -p /mnt/docker-data/media/tvshows
       mkdir -p /mnt/docker-data/media/downloads/incomplete
@@ -724,12 +723,15 @@ write_files:
       mkdir -p /mnt/docker-data/media/watch
       mkdir -p /mnt/docker-data/backups
       chown -R 1000:1000 /mnt/docker-data/compose/suwayomi
-      chown -R 1000:1000 /mnt/docker-data/media/mangas
-      # Suwayomi schrijft naar mangas/<source-naam>/<manga-naam>/ — groep heeft schrijfrechten nodig
-      # zodat zowel mediasync (NAS sync) als pasta (container user) kunnen schrijven
-      chmod -R g+ws /mnt/docker-data/media/mangas
-      chown -R 1000:1000 /mnt/docker-data/compose/mylar
       chown -R 1000:1000 /mnt/docker-data/media/comics
+      # Suwayomi schrijft naar comics/Mangas/mangas/<source-naam>/<manga-naam>/
+      # groep heeft schrijfrechten nodig zodat zowel mediasync als pasta kunnen schrijven
+      # setgid bit (g+s) zorgt dat nieuwe submappen de groepsrechten erven
+      chmod -R g+ws /mnt/docker-data/media/comics/Mangas
+      # Media mappen: groep leesbaar (mediasync rsync) + schrijfbaar op mappen (--remove-source-files)
+      find /mnt/docker-data/media -type f -exec chmod g+r {} \;
+      find /mnt/docker-data/media -type d -exec chmod g+w {} \;
+      chown -R 1000:1000 /mnt/docker-data/compose/mylar
       chown -R 1000:1000 /mnt/docker-data/media/downloads
       echo "Directory structuur klaar"
 
@@ -880,7 +882,7 @@ write_files:
             - UMASK=002
           volumes:
             - /mnt/docker-data/compose/suwayomi:/home/suwayomi/.local/share/Tachidesk
-            - /mnt/docker-data/media/mangas:/home/suwayomi/.local/share/Tachidesk/downloads
+            - /mnt/docker-data/media/comics/Mangas:/home/suwayomi/.local/share/Tachidesk/downloads
           healthcheck:
             test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:4567/ -o /dev/null || exit 1"]
             interval: 30s

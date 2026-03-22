@@ -273,6 +273,24 @@ qBittorrent runs on its own network (not behind WireGuard) for direct port forwa
 - **Sonarr:** `/downloads`, `/incomplete-downloads`, `/NZB`, `/tvshows`
 - **Mylar:** `/comics`, `/downloads`, `/watch`
 
+**Download folder structure** (`/mnt/docker-data/media/downloads/`):
+```
+downloads/
+├── complete/      ← SABnzbd completed downloads (Radarr/Sonarr watch this)
+├── incomplete/    ← SABnzbd in-progress downloads
+└── QB/            ← qBittorrent downloads (Radarr/Sonarr do NOT see this)
+```
+
+SABnzbd `complete_dir` = `/downloads/complete`. Radarr and Sonarr watch folder = `/downloads/complete`. This prevents qBittorrent downloads from being incorrectly imported by Radarr/Sonarr.
+
+**Radarr folder naming format:**
+```
+{release.year}.{movie.cleantitle}
+```
+Example: `2025.zootopia.2`, `2008.dark.knight.the`
+
+> Note: `{movie.cleantitle}` moves leading articles (The, A, An) to the end.
+
 ---
 
 ## Post-Install Notes
@@ -465,11 +483,21 @@ RSYNC_OPTS="-az --update --stats --exclude='@eaDir' --exclude='.*'"
 
 Fix existing files:
 ```bash
-sudo find /mnt/docker-data/media -type f ! -perm -u+r -exec chmod u+r {} \;
 sudo find /mnt/docker-data/media -type f ! -perm -g+r -exec chmod g+r {} \;
+sudo find /mnt/docker-data/media -type d ! -perm -g+w -exec chmod g+w {} \;
 ```
 
-Prevent future issues by ensuring containers have `UMASK=002` in their environment — this ensures new files are created as `664` (group-readable).
+Prevent future issues by ensuring containers have `UMASK=002` in their environment — this ensures new files are created as `664` (group-readable). Required for: **Radarr, Sonarr, SABnzbd, Mylar**.
+
+**Cause 3 — NAS ownership:** Files pulled to the NAS via `nas-pull-*.sh` run as `root`, creating files owned by `root:root`. Plex and other NAS services cannot read them.
+
+The pull scripts automatically run `chown admin:users` + `chmod a+rX` after each successful rsync. If files already exist with wrong ownership, fix manually:
+```bash
+chown -R admin:users "/volume1/My Video/Movies"
+chown -R admin:users "/volume1/My Video/TV-Shows"
+chown -R admin:users "/volume1/My Comicbooks"
+chmod -R a+rX "/volume1/My Video" "/volume1/My Comicbooks"
+```
 
 ---
 
